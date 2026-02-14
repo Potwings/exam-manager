@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mariadb://127.0.0.1:3306/exam_scorer?useSSL=false&serverTimezone=Asia/Seoul
+    username: root
+    password: 12345678
+    driver-class-name: org.mariadb.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+app:
+  upload-dir: ./uploads
+
+ollama:
+  base-url: https://wwtd27rne2mw0v-11434.proxy.runpod.net/
+  model: gemma3:4b
+  timeout: 120
+  enabled: true
