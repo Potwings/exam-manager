@@ -20,6 +20,7 @@ Thumbs.db
 # Env
 .env
 .env.local
+**/application-local.yml
 
 # Logs
 *.log

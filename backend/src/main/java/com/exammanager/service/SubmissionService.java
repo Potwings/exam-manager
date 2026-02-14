@@ -8,8 +8,10 @@ import com.exammanager.repository.ExamineeRepository;
 import com.exammanager.repository.ProblemRepository;
 import com.exammanager.repository.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,22 +36,34 @@ public class SubmissionService {
     @Transactional
     public SubmissionResultResponse submitAnswers(SubmissionRequest request) {
         Examinee examinee = examineeRepository.findById(request.getExamineeId())
-                .orElseThrow(() -> new IllegalArgumentException("시험자를 찾을 수 없습니다: " + request.getExamineeId()));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + request.getExamineeId()));
 
         List<Problem> problems = problemRepository.findByExamIdOrderByProblemNumber(request.getExamId());
         Map<Long, Problem> problemMap = problems.stream()
                 .collect(Collectors.toMap(Problem::getId, p -> p));
 
+        List<SubmissionRequest.AnswerItem> answers = Optional.ofNullable(request.getAnswers())
+                .orElse(Collections.emptyList());
+
+        // problemId 기준 중복 제거 (마지막 항목 유지)
+        Map<Long, SubmissionRequest.AnswerItem> deduplicated = new LinkedHashMap<>();
+        for (SubmissionRequest.AnswerItem item : answers) {
+            deduplicated.put(item.getProblemId(), item);
+        }
+
         List<Submission> submissions = new ArrayList<>();
-        for (SubmissionRequest.AnswerItem item : request.getAnswers()) {
+        for (SubmissionRequest.AnswerItem item : deduplicated.values()) {
             Problem problem = problemMap.get(item.getProblemId());
             if (problem == null) continue;
 
-            Submission submission = Submission.builder()
-                    .examinee(examinee)
-                    .problem(problem)
-                    .submittedAnswer(item.getAnswer())
-                    .build();
+            Submission submission = submissionRepository
+                    .findByExamineeIdAndProblemId(examinee.getId(), problem.getId())
+                    .orElse(Submission.builder()
+                            .examinee(examinee)
+                            .problem(problem)
+                            .build());
+
+            submission.setSubmittedAnswer(item.getAnswer());
 
             if (problem.getAnswer() != null) {
                 gradingService.grade(submission, problem.getAnswer());
@@ -63,7 +77,7 @@ public class SubmissionService {
 
     public SubmissionResultResponse getResult(Long examineeId, Long examId) {
         Examinee examinee = examineeRepository.findById(examineeId)
-                .orElseThrow(() -> new IllegalArgumentException("시험자를 찾을 수 없습니다: " + examineeId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + examineeId));
 
         List<Problem> problems = problemRepository.findByExamIdOrderByProblemNumber(examId);
         List<Submission> submissions = submissionRepository.findByExamineeIdAndProblemExamId(examineeId, examId);

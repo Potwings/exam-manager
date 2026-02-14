@@ -15,7 +15,7 @@ public class Answer {
     @Column(columnDefinition = "TEXT")
     private String content;
 
-    private Integer score;
+    private int score;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "problem_id")

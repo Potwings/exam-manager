@@ -56,7 +56,9 @@
                   v-model.number="p.score"
                   min="1"
                   class="w-20 h-8"
+                  :class="{ 'border-destructive': !p.score || p.score <= 0 }"
                 />
+                <span v-if="!p.score || p.score <= 0" class="text-xs text-destructive whitespace-nowrap">1점 이상 필요</span>
               </div>
               <Button
                 size="sm"

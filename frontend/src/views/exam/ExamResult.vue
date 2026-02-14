@@ -83,9 +83,12 @@ function getBadgeLabel(s) {
 
 onMounted(async () => {
   const { examineeId, examId } = route.query
-  if (examineeId && examId) {
+  if (!examineeId || !examId) return
+  try {
     const { data } = await fetchResult(examineeId, examId)
     result.value = data
+  } catch (e) {
+    result.value = null
   }
 })
 </script>

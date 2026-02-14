@@ -18,12 +18,11 @@ public class ExamineeController {
 
     @PostMapping("/login")
     public ResponseEntity<ExamineeResponse> login(@Valid @RequestBody ExamineeLoginRequest request) {
-        Examinee examinee = examineeRepository.findByName(request.getName())
-                .orElseGet(() -> examineeRepository.save(
-                        Examinee.builder()
-                                .name(request.getName())
-                                .build()
-                ));
+        Examinee examinee = examineeRepository.save(
+                Examinee.builder()
+                        .name(request.getName())
+                        .build()
+        );
         return ResponseEntity.ok(ExamineeResponse.from(examinee));
     }
 }

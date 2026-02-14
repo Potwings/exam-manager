@@ -24,8 +24,8 @@ public class OllamaClient {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(Duration.ofSeconds(10))
-                .setReadTimeout(Duration.ofSeconds(properties.getTimeout()))
+                .connectTimeout(Duration.ofSeconds(10))
+                .readTimeout(Duration.ofSeconds(properties.getTimeout()))
                 .build();
     }
 

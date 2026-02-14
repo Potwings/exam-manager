@@ -7,9 +7,11 @@ import com.exammanager.entity.Problem;
 import com.exammanager.repository.ExamRepository;
 import com.exammanager.repository.ProblemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -94,7 +96,7 @@ public class ExamService {
 
     public Exam findById(Long id) {
         return examRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("시험을 찾을 수 없습니다: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험을 찾을 수 없습니다: " + id));
     }
 
     public List<Problem> findProblemsByExamId(Long examId) {
@@ -118,6 +120,9 @@ public class ExamService {
                     examRepository.save(e);
                 });
         Exam exam = findById(id);
+        if (Boolean.TRUE.equals(exam.getDeleted())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "삭제된 시험은 활성화할 수 없습니다: " + id);
+        }
         exam.setActive(true);
         examRepository.save(exam);
     }

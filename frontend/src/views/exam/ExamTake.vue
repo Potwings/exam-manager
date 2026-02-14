@@ -103,9 +103,25 @@ function renderMd(text) {
 }
 
 onMounted(async () => {
+  if (!authStore.examinee?.id) {
+    router.push('/exam/login')
+    return
+  }
+
   const examId = route.params.examId
-  await examStore.loadExam(examId)
-  await examStore.loadProblems(examId)
+  if (!examId) {
+    router.push('/exam/login')
+    return
+  }
+
+  try {
+    await examStore.loadExam(examId)
+    await examStore.loadProblems(examId)
+  } catch (e) {
+    alert('문제를 불러오지 못했습니다: ' + (e.response?.data?.message || e.message))
+    router.push('/exam/login')
+    return
+  }
 
   examStore.problems.forEach(p => {
     if (isCodeProblem(p)) {

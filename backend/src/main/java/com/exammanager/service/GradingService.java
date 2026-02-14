@@ -39,11 +39,26 @@ public class GradingService {
             """;
 
     public void grade(Submission submission, Answer answer) {
+        if (answer == null) {
+            submission.setIsCorrect(false);
+            submission.setEarnedScore(0);
+            submission.setFeedback("채점 기준이 등록되지 않은 문제입니다.");
+            return;
+        }
+
         String submittedAnswer = submission.getSubmittedAnswer();
         if (submittedAnswer == null || submittedAnswer.trim().isEmpty()) {
             submission.setIsCorrect(false);
             submission.setEarnedScore(0);
             submission.setFeedback("답안이 제출되지 않았습니다.");
+            return;
+        }
+
+        int maxScore = answer.getScore();
+        if (maxScore <= 0) {
+            submission.setIsCorrect(false);
+            submission.setEarnedScore(0);
+            submission.setFeedback("배점이 0점인 문제입니다.");
             return;
         }
 
@@ -60,8 +75,10 @@ public class GradingService {
     }
 
     private void gradeWithLlm(Submission submission, Answer answer) {
-        String problemContent = submission.getProblem().getContent();
+        String problemContent = submission.getProblem() != null ? submission.getProblem().getContent() : "";
         int maxScore = answer.getScore();
+        String answerContent = answer.getContent() != null ? answer.getContent() : "";
+        String submittedAnswer = submission.getSubmittedAnswer() != null ? submission.getSubmittedAnswer() : "";
 
         String userPrompt = String.format("""
                 [문제]
@@ -74,7 +91,7 @@ public class GradingService {
                 %s
 
                 위 답안을 채점 기준에 따라 채점하고 JSON으로 응답하세요.""",
-                problemContent, maxScore, answer.getContent(), submission.getSubmittedAnswer());
+                problemContent, maxScore, answerContent, submittedAnswer);
 
         JsonNode result = ollamaClient.chat(SYSTEM_PROMPT, userPrompt);
 
@@ -87,8 +104,9 @@ public class GradingService {
             submission.setIsCorrect(earnedScore == maxScore);
             submission.setFeedback(feedback);
 
+            int problemNumber = submission.getProblem() != null ? submission.getProblem().getProblemNumber() : 0;
             log.info("LLM grading - Problem {}: {}/{} - {}",
-                    submission.getProblem().getProblemNumber(), earnedScore, maxScore, feedback);
+                    problemNumber, earnedScore, maxScore, feedback);
         } else {
             log.warn("LLM returned invalid response, falling back");
             gradeFallback(submission, answer);
@@ -96,8 +114,9 @@ public class GradingService {
     }
 
     private void gradeFallback(Submission submission, Answer answer) {
-        boolean correct = submission.getSubmittedAnswer().trim()
-                .equalsIgnoreCase(answer.getContent().trim());
+        String submittedAnswer = submission.getSubmittedAnswer() != null ? submission.getSubmittedAnswer().trim() : "";
+        String answerContent = answer.getContent() != null ? answer.getContent().trim() : "";
+        boolean correct = submittedAnswer.equalsIgnoreCase(answerContent);
         submission.setIsCorrect(correct);
         submission.setEarnedScore(correct ? answer.getScore() : 0);
         submission.setFeedback(correct ? "정답" : "오답 (단순 비교 채점)");
