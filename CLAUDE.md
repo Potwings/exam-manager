@@ -5,7 +5,7 @@
 ## Tech Stack
 
 - **Frontend**: Vue 3 + Vite 7 + Pinia + Vue Router + shadcn-vue (new-york style, Tailwind CSS v4)
-- **Backend**: Spring Boot 3.2.4 (Java 17, Gradle 8.6)
+- **Backend**: Spring Boot 3.5.7 (Java 17, Gradle 8.6)
 - **Database**: MariaDB 10+ (로컬 설치, `exam_scorer` schema, 테스트: `exam_scorer_test`)
 - **DB 드라이버**: `org.mariadb.jdbc:mariadb-java-client`
 - **파일 파싱**: Apache POI 5.2.5 (docx)
@@ -88,16 +88,33 @@ npx shadcn-vue@latest add <component-name>
 - **패키지**: `com.exammanager` 하위 `config`, `controller`, `service`, `repository`, `entity`, `dto`
 - **Lombok**: Entity에 `@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder` 패턴
 - **REST API**: `/api/` prefix. Controller → Service → Repository 계층 구조
-- **JPA**: `ddl-auto: update` (운영), `create-drop` (테스트). Entity에 `@PrePersist`로 createdAt 자동 설정
+- **JPA**: `ddl-auto: validate` (기본), `update` (dev 프로파일), `create-drop` (테스트). Entity에 `@PrePersist`로 createdAt 자동 설정
 - **파일 업로드**: multipart max 10MB
 - **DB 접속**: `jdbc:mariadb://127.0.0.1:3306/exam_scorer`
+- **예외 처리**: 리소스 미발견 시 `ResponseStatusException(NOT_FOUND)` 사용 (HTTP 404 반환)
+
+## 설정 파일 구조
+
+```
+application.yml          — 운영 안전 기본값 (validate, show-sql: false, ${DB_USERNAME}/${DB_PASSWORD})
+application-dev.yml      — 개발 오버라이드 (update, show-sql: true), profiles.include: local
+application-local.yml    — DB 자격증명 (gitignored, **/application-local.yml)
+```
+
+- `application.yml`의 `spring.profiles.active: dev`로 로컬 개발 시 자동 적용
+- 프로파일 로딩: `application.yml` → `application-dev.yml` → `application-local.yml`
+- 테스트: `src/test/resources/application.yml` + `application-local.yml` (create-drop, MariaDB)
+- 운영 배포 시: `SPRING_PROFILES_ACTIVE` 환경변수로 dev 비활성화, `DB_USERNAME`/`DB_PASSWORD` 환경변수 주입
 
 ## LLM 채점 시스템
 
 ### 아키텍처
 ```
 SubmissionService.submitAnswers()
+  → 중복 problemId 제거 (마지막 항목 유지)
+  → 기존 제출 조회 (findByExamineeIdAndProblemId) → 있으면 업데이트, 없으면 새로 생성
   → GradingService.grade()
+    → null 방어: answer null → 0점, maxScore ≤ 0 → 스킵, 빈 답안 → 0점
     → OllamaClient.isAvailable() 확인
     → gradeWithLlm(): 프롬프트 조립 → Ollama /api/chat 호출 → JSON 파싱
     → 실패 시 gradeFallback(): equalsIgnoreCase 단순 비교
@@ -143,6 +160,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### 시험 활성화
 - 동시에 1개만 활성 가능 — `PATCH /api/exams/{id}/activate`
 - 기존 활성 시험 자동 비활성화 → 새 시험 활성화
+- 삭제된 시험(`deleted=true`)은 활성화 불가 (400 Bad Request)
 - 수험자는 `/exam/login`에서 활성 시험만 자동 표시 (`GET /api/exams/active`)
 
 ### 소프트 삭제
@@ -155,7 +173,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 |--------|-------|------|
 | Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**) |
 | Problem | problems | 문제 (problemNumber, content, **contentType**) → Exam N:1 |
-| Answer | answers | 정답/채점기준 (content, score) → Problem 1:1 |
+| Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
 | Examinee | examinees | 시험자 (name) — email 필드 제거됨 |
 | Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**) → Examinee, Problem N:1 |
 
@@ -171,7 +189,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | POST | `/api/exams/upload` | ExamController | 시험 생성 — docx 업로드 (multipart, 추후 UI 연결 예정) |
 | DELETE | `/api/exams/{id}` | ExamController | 시험 소프트 삭제 (deleted=true) |
 | PATCH | `/api/exams/{id}/activate` | ExamController | 시험 활성화 (동시 1개만) |
-| POST | `/api/examinees/login` | ExamineeController | 시험자 등록/로그인 (name만 사용) |
+| POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 매번 새 레코드 생성 (고유 세션) |
 | POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (타임아웃 5분) |
 | GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 (query: examineeId, examId) |
 | GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 (ScoreSummaryResponse) |
@@ -198,8 +216,8 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | `/admin/exams/create` | ExamCreate | 시험 생성 — 문제/채점기준/배점 직접 입력 |
 | `/admin/scores` | ScoreBoard | 채점 결과 대시보드 (시험 선택 드롭다운) |
 | `/exam/login` | ExamLogin | 시험자 로그인 — 활성 시험 자동 로드 (이름만 입력) |
-| `/exam/take/:examId` | ExamTake | 시험 응시 — 코드 문제(Q9~Q11, Q13~Q14)는 Monaco Editor, 나머지는 Textarea |
-| `/exam/result` | ExamResult | 결과 확인 — 피드백 컬럼, 부분 정답 Badge (정답/부분 정답/오답) |
+| `/exam/take/:examId` | ExamTake | 시험 응시 — 라우터 가드(로그인 필수), 코드 문제는 Monaco Editor |
+| `/exam/result` | ExamResult | 결과 확인 — 라우터 가드(로그인 필수), 피드백 컬럼, 부분 정답 Badge |
 
 ## 문제 콘텐츠 타입
 
@@ -225,11 +243,22 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - **설정**: VS Code 다크 테마, minimap 비활성화, fontSize 14, wordWrap on
 - **CDN**: `https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs`
 
+## 시험자 로그인 (고유 세션)
+
+- 매 로그인마다 새 Examinee 레코드 생성 (동명이인 답안 분리)
+- `ExamineeRepository.findByName()` 제거됨
+- ScoreBoard에서 `submittedAt` 컬럼으로 동명이인 구분
+
+## 라우터 가드 (Frontend)
+
+- `/exam/take/:examId`, `/exam/result` — `meta.requiresExaminee: true`
+- `router.beforeEach`에서 `authStore.examinee` 미존재 시 `/exam/login`으로 리다이렉트
+- `ExamTake.vue` onMounted에서도 로그인/examId 검증 + API 에러 처리
+
 ## TODO (미구현)
 
 ### Phase 3 — 고도화
 - [ ] 관리자 인증/권한 분리
 - [ ] 서비스/컨트롤러 단위 테스트 추가
-- [ ] 에러 핸들링 및 입력 검증 강화
 - [ ] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)
