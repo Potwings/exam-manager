@@ -24,6 +24,7 @@ public class SubmissionService {
     private final ProblemRepository problemRepository;
     private final ExamineeRepository examineeRepository;
     private final GradingService gradingService;
+    private final ExamService examService;
 
     public List<Submission> findByExaminee(Long examineeId) {
         return submissionRepository.findByExamineeId(examineeId);
@@ -35,6 +36,8 @@ public class SubmissionService {
 
     @Transactional
     public SubmissionResultResponse submitAnswers(SubmissionRequest request) {
+        examService.findById(request.getExamId());
+
         Examinee examinee = examineeRepository.findById(request.getExamineeId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + request.getExamineeId()));
 
@@ -51,7 +54,6 @@ public class SubmissionService {
             deduplicated.put(item.getProblemId(), item);
         }
 
-        List<Submission> submissions = new ArrayList<>();
         for (SubmissionRequest.AnswerItem item : deduplicated.values()) {
             Problem problem = problemMap.get(item.getProblemId());
             if (problem == null) continue;
@@ -69,13 +71,18 @@ public class SubmissionService {
                 gradingService.grade(submission, problem.getAnswer());
             }
 
-            submissions.add(submissionRepository.save(submission));
+            submissionRepository.save(submission);
         }
 
-        return buildResult(examinee, request.getExamId(), problems, submissions);
+        List<Submission> allSubmissions = submissionRepository
+                .findByExamineeIdAndProblemExamId(examinee.getId(), request.getExamId());
+
+        return buildResult(examinee, request.getExamId(), problems, allSubmissions);
     }
 
     public SubmissionResultResponse getResult(Long examineeId, Long examId) {
+        examService.findById(examId);
+
         Examinee examinee = examineeRepository.findById(examineeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + examineeId));
 
@@ -86,6 +93,8 @@ public class SubmissionService {
     }
 
     public List<ScoreSummaryResponse> getScoreSummary(Long examId) {
+        examService.findById(examId);
+
         List<Submission> allSubmissions = submissionRepository.findByProblemExamId(examId);
 
         int maxScore = problemRepository.findByExamIdOrderByProblemNumber(examId).stream()

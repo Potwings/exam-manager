@@ -29,7 +29,7 @@
       <CardContent class="space-y-4">
         <div
           v-for="(p, idx) in problemInputs"
-          :key="idx"
+          :key="p.id"
           class="border rounded-lg p-4 space-y-3"
         >
           <!-- 헤더: 번호 + 타입 + 배점 + 삭제 -->
@@ -38,20 +38,20 @@
               <span class="font-medium text-sm">문제 {{ p.problemNumber }}</span>
               <RadioGroup v-model="p.contentType" class="flex items-center gap-3">
                 <div class="flex items-center gap-1">
-                  <RadioGroupItem :id="'type-text-' + idx" value="TEXT" />
-                  <Label :for="'type-text-' + idx" class="text-xs font-normal cursor-pointer">텍스트</Label>
+                  <RadioGroupItem :id="'type-text-' + p.id" value="TEXT" />
+                  <Label :for="'type-text-' + p.id" class="text-xs font-normal cursor-pointer">텍스트</Label>
                 </div>
                 <div class="flex items-center gap-1">
-                  <RadioGroupItem :id="'type-md-' + idx" value="MARKDOWN" />
-                  <Label :for="'type-md-' + idx" class="text-xs font-normal cursor-pointer">마크다운</Label>
+                  <RadioGroupItem :id="'type-md-' + p.id" value="MARKDOWN" />
+                  <Label :for="'type-md-' + p.id" class="text-xs font-normal cursor-pointer">마크다운</Label>
                 </div>
               </RadioGroup>
             </div>
             <div class="flex items-center gap-2">
               <div class="flex items-center gap-1">
-                <Label :for="'score-' + idx" class="text-sm text-muted-foreground">배점</Label>
+                <Label :for="'score-' + p.id" class="text-sm text-muted-foreground">배점</Label>
                 <Input
-                  :id="'score-' + idx"
+                  :id="'score-' + p.id"
                   type="number"
                   v-model.number="p.score"
                   min="1"
@@ -74,24 +74,24 @@
           <!-- 문제 내용 -->
           <div class="space-y-1">
             <div class="flex items-center justify-between">
-              <Label :for="'content-' + idx" class="text-sm">문제 내용</Label>
+              <Label :for="'content-' + p.id" class="text-sm">문제 내용</Label>
               <button
                 v-if="p.contentType === 'MARKDOWN'"
                 type="button"
                 class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                @click="togglePreview(idx, 'content')"
+                @click="togglePreview(p.id, 'content')"
               >
-                {{ previewState[idx]?.content ? '편집' : '미리보기' }}
+                {{ previewState[p.id]?.content ? '편집' : '미리보기' }}
               </button>
             </div>
             <!-- 마크다운 미리보기 -->
-            <div v-if="p.contentType === 'MARKDOWN' && previewState[idx]?.content" class="border rounded-md p-3 min-h-[80px] bg-muted/30">
+            <div v-if="p.contentType === 'MARKDOWN' && previewState[p.id]?.content" class="border rounded-md p-3 min-h-[80px] bg-muted/30">
               <div class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(p.content)"></div>
             </div>
             <!-- 마크다운 편집 -->
             <Textarea
               v-else-if="p.contentType === 'MARKDOWN'"
-              :id="'content-' + idx"
+              :id="'content-' + p.id"
               v-model="p.content"
               placeholder="마크다운으로 문제를 입력하세요... (테이블: | 열1 | 열2 |)"
               rows="5"
@@ -100,7 +100,7 @@
             <!-- 텍스트 편집 -->
             <Textarea
               v-else
-              :id="'content-' + idx"
+              :id="'content-' + p.id"
               v-model="p.content"
               placeholder="문제를 입력하세요..."
               rows="4"
@@ -109,9 +109,9 @@
 
           <!-- 채점 기준 -->
           <div class="space-y-1">
-            <Label :for="'answer-' + idx" class="text-sm">채점 기준 (정답/루브릭)</Label>
+            <Label :for="'answer-' + p.id" class="text-sm">채점 기준 (정답/루브릭)</Label>
             <Textarea
-              :id="'answer-' + idx"
+              :id="'answer-' + p.id"
               v-model="p.answerContent"
               placeholder="채점 기준을 입력하세요..."
               rows="4"
@@ -205,7 +205,7 @@ const helpPreview = computed(() => renderMarkdown(
 ))
 
 function makeProblem(num) {
-  return { problemNumber: num, content: '', contentType: 'TEXT', answerContent: '', score: 5 }
+  return { id: crypto.randomUUID(), problemNumber: num, content: '', contentType: 'TEXT', answerContent: '', score: 5 }
 }
 
 function addProblem() {
@@ -214,14 +214,15 @@ function addProblem() {
 }
 
 function removeProblem(idx) {
+  const removedId = problemInputs.value[idx]?.id
   problemInputs.value.splice(idx, 1)
   problemInputs.value.forEach((p, i) => { p.problemNumber = i + 1 })
-  delete previewState[idx]
+  if (removedId) delete previewState[removedId]
 }
 
-function togglePreview(idx, field) {
-  if (!previewState[idx]) previewState[idx] = {}
-  previewState[idx][field] = !previewState[idx][field]
+function togglePreview(id, field) {
+  if (!previewState[id]) previewState[id] = {}
+  previewState[id][field] = !previewState[id][field]
 }
 
 function renderMd(text) {

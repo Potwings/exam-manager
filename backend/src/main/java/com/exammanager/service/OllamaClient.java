@@ -66,6 +66,11 @@ public class OllamaClient {
 
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().isEmpty()) {
+                log.error("Ollama returned unexpected response: status={}, body={}", response.getStatusCode(), response.getBody());
+                return null;
+            }
+
             JsonNode root = objectMapper.readTree(response.getBody());
             String content = root.path("message").path("content").asText();
             return objectMapper.readTree(content);

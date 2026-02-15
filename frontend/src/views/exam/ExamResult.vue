@@ -1,7 +1,18 @@
 <template>
   <div class="space-y-6">
     <div class="flex items-center justify-center min-h-[30vh]">
-      <Card class="w-full max-w-lg text-center">
+      <Card v-if="errorMessage" class="w-full max-w-lg text-center">
+        <CardHeader>
+          <CardTitle class="text-2xl">오류</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p class="text-destructive">{{ errorMessage }}</p>
+        </CardContent>
+        <CardFooter class="justify-center">
+          <Button variant="outline" @click="$router.push('/exam/login')">돌아가기</Button>
+        </CardFooter>
+      </Card>
+      <Card v-else-if="result" class="w-full max-w-lg text-center">
         <CardHeader>
           <CardTitle class="text-2xl">시험 결과</CardTitle>
           <CardDescription>{{ result?.examTitle }}</CardDescription>
@@ -59,7 +70,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { fetchResult } from '@/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -67,15 +78,23 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 
 const route = useRoute()
+const router = useRouter()
 const result = ref(null)
+const errorMessage = ref('')
+
+function isValidScore(v) {
+  return v != null && !Number.isNaN(v)
+}
 
 function getBadgeVariant(s) {
+  if (!isValidScore(s.earnedScore) || !isValidScore(s.maxScore)) return 'outline'
   if (s.earnedScore === s.maxScore) return 'default'
   if (s.earnedScore > 0) return 'secondary'
   return 'destructive'
 }
 
 function getBadgeLabel(s) {
+  if (!isValidScore(s.earnedScore) || !isValidScore(s.maxScore)) return '미채점'
   if (s.earnedScore === s.maxScore) return '정답'
   if (s.earnedScore > 0) return '부분 정답'
   return '오답'
@@ -83,12 +102,15 @@ function getBadgeLabel(s) {
 
 onMounted(async () => {
   const { examineeId, examId } = route.query
-  if (!examineeId || !examId) return
+  if (!examineeId || !examId) {
+    router.replace('/exam/login')
+    return
+  }
   try {
     const { data } = await fetchResult(examineeId, examId)
     result.value = data
   } catch (e) {
-    result.value = null
+    errorMessage.value = '결과를 불러올 수 없습니다: ' + (e.response?.data?.message || e.message)
   }
 })
 </script>

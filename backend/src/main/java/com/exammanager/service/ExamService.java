@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +32,10 @@ public class ExamService {
                 .title(request.getTitle())
                 .build();
 
-        for (ExamCreateRequest.ProblemInput pi : request.getProblems()) {
+        List<ExamCreateRequest.ProblemInput> problemInputs = Optional.ofNullable(request.getProblems())
+                .orElse(Collections.emptyList());
+
+        for (ExamCreateRequest.ProblemInput pi : problemInputs) {
             Problem problem = Problem.builder()
                     .problemNumber(pi.getProblemNumber())
                     .content(pi.getContent())
@@ -68,6 +72,7 @@ public class ExamService {
             Problem problem = Problem.builder()
                     .problemNumber(num)
                     .content(content)
+                    .contentType("TEXT")
                     .exam(exam)
                     .build();
 
@@ -114,15 +119,17 @@ public class ExamService {
 
     @Transactional
     public void activateExam(Long id) {
+        Exam exam = findById(id);
+        if (Boolean.TRUE.equals(exam.getDeleted())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "삭제된 시험은 활성화할 수 없습니다: " + id);
+        }
+
         examRepository.findByActiveTrueAndDeletedFalse()
                 .ifPresent(e -> {
                     e.setActive(false);
                     examRepository.save(e);
                 });
-        Exam exam = findById(id);
-        if (Boolean.TRUE.equals(exam.getDeleted())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "삭제된 시험은 활성화할 수 없습니다: " + id);
-        }
+
         exam.setActive(true);
         examRepository.save(exam);
     }

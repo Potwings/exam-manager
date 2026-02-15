@@ -95,7 +95,8 @@ public class GradingService {
 
         JsonNode result = ollamaClient.chat(SYSTEM_PROMPT, userPrompt);
 
-        if (result != null && result.has("earnedScore")) {
+        if (result != null && result.has("earnedScore")
+                && result.get("earnedScore").isNumber()) {
             int earnedScore = result.get("earnedScore").asInt();
             earnedScore = Math.max(0, Math.min(earnedScore, maxScore));
             String feedback = result.has("feedback") ? result.get("feedback").asText() : "";
@@ -108,7 +109,7 @@ public class GradingService {
             log.info("LLM grading - Problem {}: {}/{} - {}",
                     problemNumber, earnedScore, maxScore, feedback);
         } else {
-            log.warn("LLM returned invalid response, falling back");
+            log.warn("LLM returned invalid or non-numeric earnedScore: {}", result);
             gradeFallback(submission, answer);
         }
     }
