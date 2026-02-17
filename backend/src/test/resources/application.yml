@@ -1,6 +1,7 @@
 spring:
   profiles:
-    include: local
+    group:
+      default: local
   datasource:
     url: jdbc:mariadb://127.0.0.1:3306/exam_scorer_test?createDatabaseIfNotExist=true&serverTimezone=Asia/Seoul
     driver-class-name: org.mariadb.jdbc.Driver

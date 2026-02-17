@@ -8,8 +8,8 @@ spring:
       dev: local
   datasource:
     url: jdbc:mariadb://127.0.0.1:3306/exam_scorer?useSSL=false&serverTimezone=Asia/Seoul
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username:
+    password:
     driver-class-name: org.mariadb.jdbc.Driver
   jpa:
     hibernate:
@@ -27,7 +27,7 @@ app:
   upload-dir: ./uploads
 
 ollama:
-  base-url: https://wwtd27rne2mw0v-11434.proxy.runpod.net/
-  model: gemma3:4b
+  base-url: http://localhost:11434
+  model: gemma3
   timeout: 120
   enabled: true
