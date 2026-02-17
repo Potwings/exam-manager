@@ -4,6 +4,8 @@ server:
 spring:
   profiles:
     active: dev
+    group:
+      dev: local
   datasource:
     url: jdbc:mariadb://127.0.0.1:3306/exam_scorer?useSSL=false&serverTimezone=Asia/Seoul
     username: ${DB_USERNAME}
