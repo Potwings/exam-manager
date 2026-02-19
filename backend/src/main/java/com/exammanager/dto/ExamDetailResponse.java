@@ -12,11 +12,20 @@ public class ExamDetailResponse {
     private String title;
     private List<ProblemResponse> problems;
     private int totalScore;
+    private boolean hasSubmissions;
     private LocalDateTime createdAt;
 
     public static ExamDetailResponse from(Exam exam) {
+        return buildResponse(exam, false, false);
+    }
+
+    public static ExamDetailResponse from(Exam exam, boolean hasSubmissions) {
+        return buildResponse(exam, hasSubmissions, true);
+    }
+
+    private static ExamDetailResponse buildResponse(Exam exam, boolean hasSubmissions, boolean includeAnswer) {
         List<ProblemResponse> problemList = exam.getProblems().stream()
-                .map(ProblemResponse::from)
+                .map(p -> ProblemResponse.from(p, includeAnswer))
                 .toList();
         int total = exam.getProblems().stream()
                 .filter(p -> p.getAnswer() != null)
@@ -27,6 +36,7 @@ public class ExamDetailResponse {
                 .title(exam.getTitle())
                 .problems(problemList)
                 .totalScore(total)
+                .hasSubmissions(hasSubmissions)
                 .createdAt(exam.getCreatedAt())
                 .build();
     }

@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
   fetchExams, fetchExam, fetchProblems, fetchScores,
-  createExam as apiCreateExam, deleteExam as apiDeleteExam,
-  activateExam as apiActivateExam, fetchActiveExam
+  createExam as apiCreateExam, updateExam as apiUpdateExam,
+  deleteExam as apiDeleteExam, activateExam as apiActivateExam, fetchActiveExam
 } from '@/api'
 
 export const useExamStore = defineStore('exam', () => {
@@ -37,6 +37,11 @@ export const useExamStore = defineStore('exam', () => {
     await loadExams()
   }
 
+  async function updateExam(id, formData) {
+    await apiUpdateExam(id, formData)
+    await loadExams()
+  }
+
   async function deleteExam(id) {
     await apiDeleteExam(id)
     await loadExams()
@@ -64,7 +69,7 @@ export const useExamStore = defineStore('exam', () => {
   return {
     exams, currentExam, problems, activeExam,
     loadExams, loadExam, loadProblems, loadScores,
-    createExam, deleteExam, activateExam, loadActiveExam,
+    createExam, updateExam, deleteExam, activateExam, loadActiveExam,
     clear
   }
 })
