@@ -5,11 +5,13 @@ import com.exammanager.dto.AiAssistResponse;
 import com.exammanager.service.AiAssistService;
 import com.exammanager.service.OllamaClient;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/ai-assist")
 @RequiredArgsConstructor
@@ -32,11 +34,13 @@ public class AiAssistController {
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleUnavailable(IllegalStateException e) {
-        return ResponseEntity.status(503).body(Map.of("error", e.getMessage()));
+        log.warn("AI 서비스 비가용: {}", e.getMessage());
+        return ResponseEntity.status(503).body(Map.of("error", "AI 서비스를 사용할 수 없습니다"));
     }
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleError(RuntimeException e) {
-        return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        log.error("AI 출제 도우미 처리 중 오류 발생", e);
+        return ResponseEntity.internalServerError().body(Map.of("error", "AI 처리 중 오류가 발생했습니다"));
     }
 }
