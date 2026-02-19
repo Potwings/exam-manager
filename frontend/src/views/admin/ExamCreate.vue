@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6">
     <div>
-      <h1 class="text-2xl font-bold tracking-tight">시험 생성</h1>
-      <p class="text-muted-foreground">문제와 채점 기준을 입력하여 새 시험을 생성합니다.</p>
+      <h1 class="text-2xl font-bold tracking-tight">{{ isEditMode ? '시험 수정' : '시험 생성' }}</h1>
+      <p class="text-muted-foreground">{{ isEditMode ? '문제와 채점 기준을 수정합니다.' : '문제와 채점 기준을 입력하여 새 시험을 생성합니다.' }}</p>
     </div>
 
     <Card>
@@ -60,6 +60,15 @@
                 />
                 <span v-if="!p.score || p.score <= 0" class="text-xs text-destructive whitespace-nowrap">1점 이상 필요</span>
               </div>
+              <Button
+                v-if="aiAvailable"
+                size="sm"
+                variant="ghost"
+                @click="openAiDialog(p)"
+                title="AI 출제 도우미"
+              >
+                <Sparkles class="h-4 w-4 text-amber-500" />
+              </Button>
               <Button
                 size="sm"
                 variant="ghost"
@@ -156,20 +165,26 @@ public void main() {}
     </Card>
 
     <div class="flex items-center gap-3">
-      <Button @click="handleCreate" :disabled="creating || !canCreate">
-        {{ creating ? '생성 중...' : '시험 생성' }}
+      <Button @click="handleSubmit" :disabled="submitting || !canSubmit">
+        {{ submitting ? (isEditMode ? '수정 중...' : '생성 중...') : (isEditMode ? '시험 수정' : '시험 생성') }}
       </Button>
       <span class="text-sm text-muted-foreground">
         {{ problemInputs.length }}문제 / 총 {{ totalScore }}점
       </span>
     </div>
-    <p v-if="createError" class="text-sm text-destructive">{{ createError }}</p>
+    <p v-if="submitError" class="text-sm text-destructive">{{ submitError }}</p>
+
+    <AiAssistDialog
+      v-model:open="aiDialogOpen"
+      :problem="aiTargetProblem"
+      @apply="applyAiResult"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useExamStore } from '@/stores/examStore'
 import { renderMarkdown } from '@/lib/markdown'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -178,23 +193,74 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Trash2, Plus, ChevronDown } from 'lucide-vue-next'
+import { Trash2, Plus, ChevronDown, Sparkles } from 'lucide-vue-next'
+import AiAssistDialog from '@/components/AiAssistDialog.vue'
+import { checkAiStatus, fetchExam } from '@/api'
 
 const router = useRouter()
+const route = useRoute()
 const examStore = useExamStore()
+
+const isEditMode = computed(() => !!route.params.id)
+const editId = computed(() => route.params.id)
 
 const title = ref('')
 const problemInputs = ref([makeProblem(1)])
-const creating = ref(false)
-const createError = ref('')
+const submitting = ref(false)
+const submitError = ref('')
 const showHelp = ref(false)
 const previewState = reactive({})
+
+const aiAvailable = ref(false)
+const aiDialogOpen = ref(false)
+const aiTargetProblem = ref(null)
+
+onMounted(async () => {
+  try {
+    const res = await checkAiStatus()
+    aiAvailable.value = res.data.available
+  } catch {
+    aiAvailable.value = false
+  }
+
+  // 수정 모드 또는 복제 모드: 기존 시험 데이터를 불러와 폼에 바인딩
+  const sourceId = isEditMode.value ? editId.value : route.query.from
+  if (sourceId) {
+    try {
+      const { data } = await fetchExam(sourceId)
+      title.value = data.title
+      problemInputs.value = data.problems.map(p => ({
+        id: crypto.randomUUID(),
+        problemNumber: p.problemNumber,
+        content: p.content || '',
+        contentType: p.contentType || 'TEXT',
+        answerContent: p.answerContent || '',
+        score: p.score || 5
+      }))
+    } catch (e) {
+      submitError.value = '시험 데이터 로드 실패: ' + (e.response?.data?.message || e.message)
+    }
+  }
+})
+
+function openAiDialog(problem) {
+  aiTargetProblem.value = problem
+  aiDialogOpen.value = true
+}
+
+function applyAiResult(result) {
+  if (!aiTargetProblem.value) return
+  aiTargetProblem.value.content = result.problemContent
+  aiTargetProblem.value.contentType = result.contentType
+  aiTargetProblem.value.answerContent = result.answerContent
+  aiTargetProblem.value.score = result.score
+}
 
 const totalScore = computed(() => problemInputs.value.reduce((sum, p) => sum + (p.score || 0), 0))
 
 const hasMarkdownProblem = computed(() => problemInputs.value.some(p => p.contentType === 'MARKDOWN'))
 
-const canCreate = computed(() =>
+const canSubmit = computed(() =>
   title.value.trim() &&
   problemInputs.value.length > 0 &&
   problemInputs.value.every(p => p.content.trim() && p.answerContent.trim() && p.score > 0)
@@ -229,26 +295,31 @@ function renderMd(text) {
   return renderMarkdown(text)
 }
 
-async function handleCreate() {
-  if (!canCreate.value) return
-  creating.value = true
-  createError.value = ''
+async function handleSubmit() {
+  if (!canSubmit.value) return
+  submitting.value = true
+  submitError.value = ''
+  const payload = {
+    title: title.value.trim(),
+    problems: problemInputs.value.map(p => ({
+      problemNumber: p.problemNumber,
+      content: p.content.trim(),
+      contentType: p.contentType,
+      answerContent: p.answerContent.trim(),
+      score: p.score
+    }))
+  }
   try {
-    await examStore.createExam({
-      title: title.value.trim(),
-      problems: problemInputs.value.map(p => ({
-        problemNumber: p.problemNumber,
-        content: p.content.trim(),
-        contentType: p.contentType,
-        answerContent: p.answerContent.trim(),
-        score: p.score
-      }))
-    })
+    if (isEditMode.value) {
+      await examStore.updateExam(editId.value, payload)
+    } else {
+      await examStore.createExam(payload)
+    }
     router.push('/admin/exams')
   } catch (e) {
-    createError.value = '시험 생성 실패: ' + (e.response?.data?.message || e.message)
+    submitError.value = '저장 실패: ' + (e.response?.data?.message || e.message)
   } finally {
-    creating.value = false
+    submitting.value = false
   }
 }
 </script>

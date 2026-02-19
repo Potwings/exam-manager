@@ -23,6 +23,10 @@ export function createExam(data) {
   return api.post('/exams', data)
 }
 
+export function updateExam(id, data) {
+  return api.put(`/exams/${id}`, data)
+}
+
 export function deleteExam(id) {
   return api.delete(`/exams/${id}`)
 }
@@ -55,6 +59,16 @@ export function fetchResult(examineeId, examId) {
 
 export function fetchScores(examId) {
   return api.get(`/scores/exam/${examId}`)
+}
+
+// ===== AI Assist =====
+
+export function checkAiStatus() {
+  return api.get('/ai-assist/status')
+}
+
+export function generateAiAssist(data) {
+  return api.post('/ai-assist/generate', data, { timeout: 180000 })
 }
 
 export default api

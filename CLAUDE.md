@@ -26,14 +26,14 @@ exam-scorer/
 │       ├── lib/             # utils.ts (cn 헬퍼), markdown.js (markdown-it 래퍼)
 │       ├── stores/          # Pinia (authStore, examStore)
 │       ├── views/
-│       │   ├── admin/       # ExamManage, ExamCreate, ScoreBoard
+│       │   ├── admin/       # ExamManage, ExamCreate, ExamDetail, ScoreBoard
 │       │   └── exam/        # ExamLogin, ExamTake, ExamResult
 │       └── router/          # Vue Router
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/exammanager/
 │       ├── config/          # WebConfig (CORS), OllamaProperties
-│       ├── controller/      # ExamController, ExamineeController, SubmissionController, ScoreController
-│       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService
+│       ├── controller/      # ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController
+│       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService
 │       ├── repository/      # JPA Repositories (4개)
 │       ├── entity/          # Exam, Problem, Answer, Examinee, Submission
 │       └── dto/             # 요청/응답 DTO
@@ -157,6 +157,27 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - `POST /api/exams` → `ExamCreateRequest` JSON → `ExamService.createExam()`
 - docx 업로드 생성도 별도 유지: `POST /api/exams/upload` (추후 UI 연결 예정)
 
+### 시험 수정
+- 제출 결과가 없는 시험만 수정 가능 — `PUT /api/exams/{id}`
+- 제출 결과가 있는 시험 수정 시도 시 409 CONFLICT 반환 → 복제 유도
+- 수정 시 기존 문제 전체 삭제(`orphanRemoval`) 후 재생성 (`clear()` + `flush()` + INSERT)
+- 삭제된 시험(`deleted=true`) 수정 불가 (400 Bad Request)
+- ExamCreate 컴포넌트를 생성/수정/복제 겸용으로 사용
+  - `/admin/exams/create` — 새 시험 생성
+  - `/admin/exams/:id/edit` — 기존 시험 수정
+  - `/admin/exams/create?from=:id` — 기존 시험 복제하여 새 시험 생성
+
+### 시험 조회
+- `/admin/exams/:id` — ExamDetail 읽기 전용 상세 페이지
+- 수정 버튼 클릭 시: 제출 결과 없으면 수정 페이지로, 있으면 복제 안내 배너 노출
+- 목록에서 행 클릭으로 상세 페이지 이동
+
+### 답안 노출 제어
+- `ProblemResponse.from(problem)` — 답안 미포함 (수험자용)
+- `ProblemResponse.from(problem, true)` — 답안 포함 (관리자용)
+- `ExamDetailResponse.from(exam)` — 답안 미포함 (수험자: `/api/exams/active`)
+- `ExamDetailResponse.from(exam, hasSubmissions)` — 답안 포함 (관리자: `/api/exams/{id}`)
+
 ### 시험 활성화
 - 동시에 1개만 활성 가능 — `PATCH /api/exams/{id}/activate`
 - 기존 활성 시험 자동 비활성화 → 새 시험 활성화
@@ -187,21 +208,26 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | GET | `/api/exams/active` | ExamController | 현재 활성 시험 1개 (수험자용, ExamDetailResponse) |
 | POST | `/api/exams` | ExamController | 시험 생성 — Web UI JSON (ExamCreateRequest) |
 | POST | `/api/exams/upload` | ExamController | 시험 생성 — docx 업로드 (multipart, 추후 UI 연결 예정) |
+| PUT | `/api/exams/{id}` | ExamController | 시험 수정 — 제출 결과 없을 때만 (409 CONFLICT) |
 | DELETE | `/api/exams/{id}` | ExamController | 시험 소프트 삭제 (deleted=true) |
 | PATCH | `/api/exams/{id}/activate` | ExamController | 시험 활성화 (동시 1개만) |
 | POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 매번 새 레코드 생성 (고유 세션) |
 | POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (타임아웃 5분) |
 | GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 (query: examineeId, examId) |
 | GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 (ScoreSummaryResponse) |
+| GET | `/api/ai-assist/status` | AiAssistController | AI 출제 도우미 사용 가능 여부 확인 |
+| POST | `/api/ai-assist/generate` | AiAssistController | AI 문제/채점기준 자동 생성 |
 
 ## DTO
 
 | 클래스 | 용도 |
 |--------|------|
-| ExamCreateRequest | 시험 생성 요청 (title, problems[{problemNumber, content, **contentType**, answerContent, score}]) |
+| ExamCreateRequest | 시험 생성/수정 요청 (title, problems[{problemNumber, content, **contentType**, answerContent, score}]) |
 | ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, createdAt) |
-| ExamDetailResponse | 시험 상세 응답 (problems 포함) |
-| ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**) |
+| ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions** 포함) |
+| ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, answerContent?, score?) — 답안은 관리자용만 포함 |
+| AiAssistRequest | AI 출제 요청 (topic, difficulty 등) |
+| AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
 | ExamineeLoginRequest | 로그인 요청 (name) |
 | ExamineeResponse | 시험자 응답 (id, name) |
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
@@ -212,8 +238,10 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 
 | Path | Component | 설명 |
 |------|-----------|------|
-| `/admin/exams` | ExamManage | 시험 목록 관리 (활성화 토글, 소프트 삭제) |
-| `/admin/exams/create` | ExamCreate | 시험 생성 — 문제/채점기준/배점 직접 입력 |
+| `/admin/exams` | ExamManage | 시험 목록 관리 (활성화 토글, 소프트 삭제, 행 클릭→상세) |
+| `/admin/exams/create` | ExamCreate | 시험 생성 — 문제/채점기준/배점 직접 입력 (`?from=:id`로 복제) |
+| `/admin/exams/:id` | ExamDetail | 시험 상세 조회 (읽기 전용, 수정/복제 분기) |
+| `/admin/exams/:id/edit` | ExamCreate | 시험 수정 (생성 컴포넌트 재사용) |
 | `/admin/scores` | ScoreBoard | 채점 결과 대시보드 (시험 선택 드롭다운) |
 | `/exam/login` | ExamLogin | 시험자 로그인 — 활성 시험 자동 로드 (이름만 입력) |
 | `/exam/take/:examId` | ExamTake | 시험 응시 — 라우터 가드(로그인 필수), 코드 문제는 Monaco Editor |
@@ -254,6 +282,15 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - `/exam/take/:examId`, `/exam/result` — `meta.requiresExaminee: true`
 - `router.beforeEach`에서 `authStore.examinee` 미존재 시 `/exam/login`으로 리다이렉트
 - `ExamTake.vue` onMounted에서도 로그인/examId 검증 + API 에러 처리
+
+## AI 출제 도우미
+
+- 시험 생성/수정 시 문제별 AI 자동 생성 기능 (Sparkles 아이콘 버튼)
+- Ollama 연동: `AiAssistService` → `OllamaClient` → gemma3 모델
+- `GET /api/ai-assist/status` — Ollama 사용 가능 여부 확인 (버튼 표시 제어)
+- `POST /api/ai-assist/generate` — 주제/난이도 기반 문제+채점기준 생성
+- `AiAssistDialog.vue` — shadcn Dialog + ScrollArea로 결과 표시, 적용 버튼으로 폼에 반영
+- Ollama 미실행 시 AI 버튼 자체가 숨김 처리됨
 
 ## TODO (미구현)
 

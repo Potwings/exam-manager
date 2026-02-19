@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore'
 
 import ExamManage from '../views/admin/ExamManage.vue'
 import ExamCreate from '../views/admin/ExamCreate.vue'
+import ExamDetail from '../views/admin/ExamDetail.vue'
 import ScoreBoard from '../views/admin/ScoreBoard.vue'
 import ExamLogin from '../views/exam/ExamLogin.vue'
 import ExamTake from '../views/exam/ExamTake.vue'
@@ -12,6 +13,8 @@ const routes = [
   { path: '/', redirect: '/exam/login' },
   { path: '/admin/exams', component: ExamManage },
   { path: '/admin/exams/create', component: ExamCreate },
+  { path: '/admin/exams/:id/edit', component: ExamCreate },
+  { path: '/admin/exams/:id', component: ExamDetail },
   { path: '/admin/scores', component: ScoreBoard },
   { path: '/exam/login', component: ExamLogin },
   { path: '/exam/take/:examId', component: ExamTake, meta: { requiresExaminee: true } },

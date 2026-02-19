@@ -6,6 +6,7 @@ import com.exammanager.entity.Exam;
 import com.exammanager.entity.Problem;
 import com.exammanager.repository.ExamRepository;
 import com.exammanager.repository.ProblemRepository;
+import com.exammanager.repository.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class ExamService {
 
     private final ExamRepository examRepository;
     private final ProblemRepository problemRepository;
+    private final SubmissionRepository submissionRepository;
     private final DocxParserService docxParserService;
 
     @Transactional
@@ -136,5 +138,50 @@ public class ExamService {
 
     public Optional<Exam> findActiveExam() {
         return examRepository.findByActiveTrueAndDeletedFalse();
+    }
+
+    @Transactional
+    public Exam updateExam(Long id, ExamCreateRequest request) {
+        Exam exam = findById(id);
+
+        if (Boolean.TRUE.equals(exam.getDeleted())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "삭제된 시험은 수정할 수 없습니다: " + id);
+        }
+
+        if (submissionRepository.existsByProblemExamId(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "제출 결과가 있는 시험은 수정할 수 없습니다. 복제하여 새 시험을 만들어주세요.");
+        }
+
+        exam.setTitle(request.getTitle());
+
+        // 제출 결과가 없으므로 orphanRemoval로 기존 문제/답안 안전 삭제
+        exam.getProblems().clear();
+        examRepository.flush();
+
+        List<ExamCreateRequest.ProblemInput> problemInputs = Optional.ofNullable(request.getProblems())
+                .orElse(Collections.emptyList());
+
+        for (ExamCreateRequest.ProblemInput pi : problemInputs) {
+            Problem problem = Problem.builder()
+                    .problemNumber(pi.getProblemNumber())
+                    .content(pi.getContent())
+                    .contentType(pi.getContentType() != null ? pi.getContentType() : "TEXT")
+                    .exam(exam)
+                    .build();
+            Answer answer = Answer.builder()
+                    .content(pi.getAnswerContent())
+                    .score(pi.getScore())
+                    .problem(problem)
+                    .build();
+            problem.setAnswer(answer);
+            exam.getProblems().add(problem);
+        }
+
+        return examRepository.save(exam);
+    }
+
+    public boolean hasSubmissions(Long examId) {
+        return submissionRepository.existsByProblemExamId(examId);
     }
 }

@@ -30,7 +30,7 @@
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="exam in examStore.exams" :key="exam.id">
+            <TableRow v-for="exam in examStore.exams" :key="exam.id" class="cursor-pointer" @click="router.push(`/admin/exams/${exam.id}`)">
               <TableCell>{{ exam.id }}</TableCell>
               <TableCell class="font-medium">{{ exam.title }}</TableCell>
               <TableCell>
@@ -47,7 +47,7 @@
                 <Button
                   size="sm"
                   :variant="exam.active ? 'secondary' : 'default'"
-                  @click="handleActivate(exam.id)"
+                  @click.stop="handleActivate(exam.id)"
                   :disabled="exam.active"
                 >
                   {{ exam.active ? '활성 중' : '활성화' }}
@@ -55,7 +55,7 @@
                 <Button
                   size="sm"
                   variant="destructive"
-                  @click="handleDelete(exam.id, exam.title)"
+                  @click.stop="handleDelete(exam.id, exam.title)"
                 >
                   <Trash2 class="h-4 w-4" />
                 </Button>
@@ -73,6 +73,7 @@
 
 <script setup>
 import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useExamStore } from '@/stores/examStore'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
@@ -80,6 +81,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Trash2, Plus } from 'lucide-vue-next'
 
+const router = useRouter()
 const examStore = useExamStore()
 
 onMounted(() => examStore.loadExams())

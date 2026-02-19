@@ -32,7 +32,8 @@ public class ExamController {
     @GetMapping("/{id}")
     public ResponseEntity<ExamDetailResponse> get(@PathVariable Long id) {
         Exam exam = examService.findById(id);
-        return ResponseEntity.ok(ExamDetailResponse.from(exam));
+        boolean hasSubs = examService.hasSubmissions(id);
+        return ResponseEntity.ok(ExamDetailResponse.from(exam, hasSubs));
     }
 
     @GetMapping("/{id}/problems")
@@ -55,6 +56,12 @@ public class ExamController {
             @RequestParam MultipartFile problemFile,
             @RequestParam MultipartFile answerFile) {
         Exam exam = examService.createExamFromDocx(title, problemFile, answerFile);
+        return ResponseEntity.ok(ExamResponse.from(exam));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ExamResponse> update(@PathVariable Long id, @RequestBody ExamCreateRequest request) {
+        Exam exam = examService.updateExam(id, request);
         return ResponseEntity.ok(ExamResponse.from(exam));
     }
 
