@@ -13,7 +13,8 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       window.location.pathname.startsWith('/admin') &&
-      !error.config.url.includes('/admin/me')
+      !error.config.url.includes('/admin/me') &&
+      !error.config.url.includes('/admin/login')
     ) {
       window.location.href = '/admin/login'
     }

@@ -136,8 +136,18 @@ onMounted(async () => {
   }
 
   try {
-    await examStore.loadExam(examId)
-    await examStore.loadProblems(examId)
+    // 공개 API(loadActiveExam)로 시험 데이터 로드
+    if (!examStore.activeExam || String(examStore.activeExam.id) !== String(examId)) {
+      await examStore.loadActiveExam()
+    }
+    if (examStore.activeExam && String(examStore.activeExam.id) === String(examId)) {
+      examStore.currentExam = examStore.activeExam
+      examStore.problems = examStore.activeExam.problems || []
+    } else {
+      alert('시험을 찾을 수 없습니다.')
+      router.push('/exam/login')
+      return
+    }
   } catch (e) {
     alert('문제를 불러오지 못했습니다: ' + (e.response?.data?.message || e.message))
     router.push('/exam/login')
