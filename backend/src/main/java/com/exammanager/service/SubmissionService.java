@@ -38,6 +38,11 @@ public class SubmissionService {
     public SubmissionResultResponse submitAnswers(SubmissionRequest request) {
         examService.findById(request.getExamId());
 
+        // 재시험 방지: 이미 해당 시험에 제출한 기록이 있으면 409 반환
+        if (submissionRepository.existsByExamineeIdAndProblemExamId(request.getExamineeId(), request.getExamId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 응시 완료한 시험입니다");
+        }
+
         Examinee examinee = examineeRepository.findById(request.getExamineeId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + request.getExamineeId()));
 
@@ -113,6 +118,7 @@ public class SubmissionService {
                     return ScoreSummaryResponse.builder()
                             .examineeId(ex.getId())
                             .examineeName(ex.getName())
+                            .examineeBirthDate(ex.getBirthDate())
                             .totalScore(total)
                             .maxScore(maxScore)
                             .submittedAt(subs.stream()

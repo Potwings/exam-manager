@@ -1,24 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 
+import AdminLogin from '../views/admin/AdminLogin.vue'
 import ExamManage from '../views/admin/ExamManage.vue'
 import ExamCreate from '../views/admin/ExamCreate.vue'
 import ExamDetail from '../views/admin/ExamDetail.vue'
 import ScoreBoard from '../views/admin/ScoreBoard.vue'
 import ExamLogin from '../views/exam/ExamLogin.vue'
 import ExamTake from '../views/exam/ExamTake.vue'
-import ExamResult from '../views/exam/ExamResult.vue'
 
 const routes = [
   { path: '/', redirect: '/exam/login' },
-  { path: '/admin/exams', component: ExamManage },
-  { path: '/admin/exams/create', component: ExamCreate },
-  { path: '/admin/exams/:id/edit', component: ExamCreate },
-  { path: '/admin/exams/:id', component: ExamDetail },
-  { path: '/admin/scores', component: ScoreBoard },
+  { path: '/admin/login', component: AdminLogin },
+  { path: '/admin/exams', component: ExamManage, meta: { requiresAdmin: true } },
+  { path: '/admin/exams/create', component: ExamCreate, meta: { requiresAdmin: true } },
+  { path: '/admin/exams/:id/edit', component: ExamCreate, meta: { requiresAdmin: true } },
+  { path: '/admin/exams/:id', component: ExamDetail, meta: { requiresAdmin: true } },
+  { path: '/admin/scores', component: ScoreBoard, meta: { requiresAdmin: true } },
   { path: '/exam/login', component: ExamLogin },
-  { path: '/exam/take/:examId', component: ExamTake, meta: { requiresExaminee: true } },
-  { path: '/exam/result', component: ExamResult, meta: { requiresExaminee: true } }
+  { path: '/exam/take/:examId', component: ExamTake, meta: { requiresExaminee: true } }
 ]
 
 const router = createRouter({
@@ -26,9 +26,20 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
+  const authStore = useAuthStore()
+
+  if (to.meta.requiresAdmin) {
+    // 앱 시작 직후 세션 확인이 아직 미완료이면 checkAdmin()을 대기
+    if (authStore.adminLoading) {
+      await authStore.checkAdmin()
+    }
+    if (!authStore.admin) {
+      return '/admin/login'
+    }
+  }
+
   if (to.meta.requiresExaminee) {
-    const authStore = useAuthStore()
     if (!authStore.examinee) {
       return '/exam/login'
     }

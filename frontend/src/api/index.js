@@ -2,8 +2,38 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 10000
+  timeout: 10000,
+  withCredentials: true
 })
+
+// 401 응답 인터셉터: admin 페이지에서 세션 만료 시 로그인 페이지로 리다이렉트
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      error.response?.status === 401 &&
+      window.location.pathname.startsWith('/admin') &&
+      !error.config.url.includes('/admin/me')
+    ) {
+      window.location.href = '/admin/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
+// ===== Admin =====
+
+export function adminLogin(username, password) {
+  return api.post('/admin/login', { username, password })
+}
+
+export function adminLogout() {
+  return api.post('/admin/logout')
+}
+
+export function adminMe() {
+  return api.get('/admin/me')
+}
 
 // ===== Exam =====
 
@@ -41,8 +71,8 @@ export function fetchActiveExam() {
 
 // ===== Examinee =====
 
-export function loginExaminee(name) {
-  return api.post('/examinees/login', { name })
+export function loginExaminee(name, birthDate) {
+  return api.post('/examinees/login', { name, birthDate })
 }
 
 // ===== Submission =====

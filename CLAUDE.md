@@ -11,6 +11,7 @@
 - **파일 파싱**: Apache POI 5.2.5 (docx)
 - **마크다운**: markdown-it (문제 마크다운 렌더링) + @tailwindcss/typography (prose 스타일)
 - **아이콘**: lucide-vue-next
+- **인증**: Spring Security 6 (세션 기반, BCrypt)
 - **LLM 채점**: Ollama (gemma3 모델, 로컬 `http://localhost:11434`)
 - **코드 에디터**: Monaco Editor (`@guolao/vue-monaco-editor`, CDN 로드)
 
@@ -26,16 +27,16 @@ exam-scorer/
 │       ├── lib/             # utils.ts (cn 헬퍼), markdown.js (markdown-it 래퍼)
 │       ├── stores/          # Pinia (authStore, examStore)
 │       ├── views/
-│       │   ├── admin/       # ExamManage, ExamCreate, ExamDetail, ScoreBoard
-│       │   └── exam/        # ExamLogin, ExamTake, ExamResult
+│       │   ├── admin/       # AdminLogin, ExamManage, ExamCreate, ExamDetail, ScoreBoard
+│       │   └── exam/        # ExamLogin, ExamTake
 │       └── router/          # Vue Router
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/exammanager/
-│       ├── config/          # WebConfig (CORS), OllamaProperties
-│       ├── controller/      # ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController
-│       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService
-│       ├── repository/      # JPA Repositories (4개)
-│       ├── entity/          # Exam, Problem, Answer, Examinee, Submission
+│       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, AdminInitializer
+│       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController
+│       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService, AdminUserDetailsService
+│       ├── repository/      # JPA Repositories (5개)
+│       ├── entity/          # Admin, Exam, Problem, Answer, Examinee, Submission
 │       └── dto/             # 요청/응답 DTO
 │   └── src/main/resources/
 │       └── data/            # seed.sql (초기 시드 데이터, 수동 실행용)
@@ -92,6 +93,7 @@ npx shadcn-vue@latest add <component-name>
 - **파일 업로드**: multipart max 10MB
 - **DB 접속**: `jdbc:mariadb://127.0.0.1:3306/exam_scorer`
 - **예외 처리**: 리소스 미발견 시 `ResponseStatusException(NOT_FOUND)` 사용 (HTTP 404 반환)
+- **에러 핸들러 보안**: `@ExceptionHandler`에서 `e.getMessage()`를 클라이언트에 직접 반환 금지. 고정 메시지만 응답하고, 실제 에러는 `log.error()`/`log.warn()`으로 서버 로그에 기록. `Map.of()`는 null 값 시 NPE 발생하므로 주의
 
 ## 설정 파일 구조
 
@@ -111,6 +113,7 @@ application-local.yml    — DB 자격증명 (gitignored, **/application-local.y
 ### 아키텍처
 ```
 SubmissionService.submitAnswers()
+  → 재시험 방지: existsByExamineeIdAndProblemExamId() → 이미 있으면 409 CONFLICT
   → 중복 problemId 제거 (마지막 항목 유지)
   → 기존 제출 조회 (findByExamineeIdAndProblemId) → 있으면 업데이트, 없으면 새로 생성
   → GradingService.grade()
@@ -192,10 +195,11 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 
 | Entity | Table | 설명 |
 |--------|-------|------|
+| Admin | admins | 관리자 (username:`UNIQUE`, password:`BCrypt`, role) |
 | Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**) |
 | Problem | problems | 문제 (problemNumber, content, **contentType**) → Exam N:1 |
 | Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
-| Examinee | examinees | 시험자 (name) — email 필드 제거됨 |
+| Examinee | examinees | 시험자 (name, **birthDate**) |
 | Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**) → Examinee, Problem N:1 |
 
 ## API Endpoints
@@ -211,12 +215,15 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | PUT | `/api/exams/{id}` | ExamController | 시험 수정 — 제출 결과 없을 때만 (409 CONFLICT) |
 | DELETE | `/api/exams/{id}` | ExamController | 시험 소프트 삭제 (deleted=true) |
 | PATCH | `/api/exams/{id}/activate` | ExamController | 시험 활성화 (동시 1개만) |
-| POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 매번 새 레코드 생성 (고유 세션) |
-| POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (타임아웃 5분) |
-| GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 (query: examineeId, examId) |
-| GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 (ScoreSummaryResponse) |
-| GET | `/api/ai-assist/status` | AiAssistController | AI 출제 도우미 사용 가능 여부 확인 |
-| POST | `/api/ai-assist/generate` | AiAssistController | AI 문제/채점기준 자동 생성 |
+| POST | `/api/admin/login` | AdminController | 관리자 로그인 (세션 생성) — **Public** |
+| POST | `/api/admin/logout` | AdminController | 관리자 로그아웃 (세션 무효화) |
+| GET | `/api/admin/me` | AdminController | 현재 세션 관리자 정보 — **Public** |
+| POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 이름+생년월일 find-or-create — **Public** |
+| POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (재시험 방지, 간소 응답) — **Public** |
+| GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 — **Admin** |
+| GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 — **Admin** |
+| GET | `/api/ai-assist/status` | AiAssistController | AI 출제 도우미 사용 가능 여부 확인 — **Admin** |
+| POST | `/api/ai-assist/generate` | AiAssistController | AI 문제/채점기준 자동 생성 — **Admin** |
 
 ## DTO
 
@@ -228,24 +235,26 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, answerContent?, score?) — 답안은 관리자용만 포함 |
 | AiAssistRequest | AI 출제 요청 (topic, difficulty 등) |
 | AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
-| ExamineeLoginRequest | 로그인 요청 (name) |
-| ExamineeResponse | 시험자 응답 (id, name) |
+| AdminLoginRequest | 관리자 로그인 요청 (username, password) |
+| AdminResponse | 관리자 응답 (id, username, role) |
+| ExamineeLoginRequest | 로그인 요청 (name, **birthDate**) |
+| ExamineeResponse | 시험자 응답 (id, name, **birthDate**) |
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
 | SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**}]) |
-| ScoreSummaryResponse | 점수 집계 응답 (examineeName, totalScore, maxScore, submittedAt) |
+| ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, submittedAt) |
 
 ## Routes (Frontend)
 
 | Path | Component | 설명 |
 |------|-----------|------|
-| `/admin/exams` | ExamManage | 시험 목록 관리 (활성화 토글, 소프트 삭제, 행 클릭→상세) |
-| `/admin/exams/create` | ExamCreate | 시험 생성 — 문제/채점기준/배점 직접 입력 (`?from=:id`로 복제) |
-| `/admin/exams/:id` | ExamDetail | 시험 상세 조회 (읽기 전용, 수정/복제 분기) |
-| `/admin/exams/:id/edit` | ExamCreate | 시험 수정 (생성 컴포넌트 재사용) |
-| `/admin/scores` | ScoreBoard | 채점 결과 대시보드 (시험 선택 드롭다운) |
-| `/exam/login` | ExamLogin | 시험자 로그인 — 활성 시험 자동 로드 (이름만 입력) |
-| `/exam/take/:examId` | ExamTake | 시험 응시 — 라우터 가드(로그인 필수), 코드 문제는 Monaco Editor |
-| `/exam/result` | ExamResult | 결과 확인 — 라우터 가드(로그인 필수), 피드백 컬럼, 부분 정답 Badge |
+| `/admin/login` | AdminLogin | 관리자 로그인 (아이디/비밀번호) |
+| `/admin/exams` | ExamManage | 시험 목록 관리 — **Admin 가드** |
+| `/admin/exams/create` | ExamCreate | 시험 생성 — **Admin 가드** |
+| `/admin/exams/:id` | ExamDetail | 시험 상세 조회 — **Admin 가드** |
+| `/admin/exams/:id/edit` | ExamCreate | 시험 수정 — **Admin 가드** |
+| `/admin/scores` | ScoreBoard | 채점 결과 대시보드 — **Admin 가드** |
+| `/exam/login` | ExamLogin | 시험자 로그인 — 이름 + 생년월일 입력 |
+| `/exam/take/:examId` | ExamTake | 시험 응시 — **Examinee 가드**, 제출 후 완료 메시지 표시 |
 
 ## 문제 콘텐츠 타입
 
@@ -271,17 +280,49 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - **설정**: VS Code 다크 테마, minimap 비활성화, fontSize 14, wordWrap on
 - **CDN**: `https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs`
 
-## 시험자 로그인 (고유 세션)
+## 인증/권한 체계
 
-- 매 로그인마다 새 Examinee 레코드 생성 (동명이인 답안 분리)
-- `ExamineeRepository.findByName()` 제거됨
-- ScoreBoard에서 `submittedAt` 컬럼으로 동명이인 구분
+### 관리자 인증 (Spring Security 세션 기반)
+- `SecurityConfig.java` — 필터 체인 + CORS (`allowCredentials: true`)
+- `Admin` 엔티티 + `AdminRepository` + `AdminUserDetailsService` (UserDetailsService 구현)
+- `AdminInitializer` — 앱 기동 시 `admins` 테이블 비어있으면 기본 계정 생성 (`admin/admin123`)
+- `AdminController` — 프로그래매틱 인증 (`/api/admin/login`, `/api/admin/logout`, `/api/admin/me`)
+- 미인증 시 401 반환 (`HttpStatusEntryPoint`), 로그인 폼 리다이렉트 안 함
+- 세션 정책: `IF_REQUIRED` + `maximumSessions(1)`
 
-## 라우터 가드 (Frontend)
+### 엔드포인트 보호 규칙
+| 분류 | 경로 | 접근 |
+|------|------|------|
+| Public | `GET /api/exams/active`, `POST /api/examinees/**`, `POST /api/submissions` | permitAll |
+| Public | `/api/admin/login`, `/api/admin/me` | permitAll |
+| Admin | `GET/POST/PUT/DELETE/PATCH /api/exams/**` (active 제외) | authenticated |
+| Admin | `GET /api/submissions/result`, `/api/scores/**`, `/api/ai-assist/**` | authenticated |
 
-- `/exam/take/:examId`, `/exam/result` — `meta.requiresExaminee: true`
-- `router.beforeEach`에서 `authStore.examinee` 미존재 시 `/exam/login`으로 리다이렉트
-- `ExamTake.vue` onMounted에서도 로그인/examId 검증 + API 에러 처리
+### 수험자 인증 (이름 + 생년월일)
+- `Examinee` 엔티티에 `birthDate` (LocalDate) 필드 추가
+- `findByNameAndBirthDate()` — 이름+생년월일 동일하면 기존 레코드 재사용 (find-or-create)
+- 동일 수험자의 재시험 방지에 활용 (같은 examineeId로 이미 제출 기록 존재 시 409)
+
+### 재시험 방지
+- `SubmissionService.submitAnswers()` 시작 시 `existsByExamineeIdAndProblemExamId()` 검증
+- 이미 제출 기록이 있으면 `409 CONFLICT` ("이미 응시 완료한 시험입니다")
+- 프론트엔드에서 409 응답 시 에러 메시지 표시 + `/exam/login`으로 이동
+
+### 프론트엔드 인증 상태 (authStore)
+- `admin` ref — 관리자 세션 정보, `adminLoading` ref — 세션 확인 완료 전 가드 방지
+- `checkAdmin()` — `GET /api/admin/me`로 세션 복원 (페이지 새로고침 대응)
+- axios `withCredentials: true` — 세션 쿠키(JSESSIONID) 자동 포함
+- 401 인터셉터 — admin 페이지에서 세션 만료 시 `/admin/login`으로 리다이렉트
+
+### 라우터 가드
+- `/admin/*` (login 제외) — `meta.requiresAdmin: true`, `checkAdmin()` await 후 인증 확인
+- `/exam/take/:examId` — `meta.requiresExaminee: true`, `authStore.examinee` 확인
+- `App.vue` — Manage, Scores 링크는 `authStore.admin` 있을 때만 표시
+
+### 답안 제출 결과 관리자 전용화
+- `POST /api/submissions` — 채점은 백엔드에서 수행하되, 응답은 성공 메시지만 반환 (점수/피드백 미포함)
+- `ExamTake.vue` — 제출 후 "제출 완료" Card 표시 (결과 페이지 이동 제거)
+- `GET /api/submissions/result` — 관리자 인증 필수 (채점 결과 조회)
 
 ## AI 출제 도우미
 
@@ -295,7 +336,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ## TODO (미구현)
 
 ### Phase 3 — 고도화
-- [ ] 관리자 인증/권한 분리
+- [x] 관리자 인증/권한 분리
 - [ ] 서비스/컨트롤러 단위 테스트 추가
 - [ ] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)

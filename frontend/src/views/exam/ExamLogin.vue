@@ -10,6 +10,10 @@
           <Label for="name">이름</Label>
           <Input id="name" v-model="name" placeholder="홍길동" />
         </div>
+        <div class="space-y-2">
+          <Label for="birthDate">생년월일</Label>
+          <Input id="birthDate" v-model="birthDate" placeholder="ex) 20010101" maxlength="8" />
+        </div>
         <div v-if="examStore.activeExam" class="p-3 bg-muted rounded-md text-sm">
           <span class="text-muted-foreground">시험: </span>
           <span class="font-medium">{{ examStore.activeExam.title }}</span>
@@ -20,7 +24,7 @@
         </p>
       </CardContent>
       <CardFooter>
-        <Button class="w-full" @click="handleLogin" :disabled="loginLoading || !examStore.activeExam || !name.trim()">
+        <Button class="w-full" @click="handleLogin" :disabled="loginLoading || !examStore.activeExam || !name.trim() || !/^\d{8}$/.test(birthDate)">
           {{ loginLoading ? '로그인 중...' : '시험 시작' }}
         </Button>
       </CardFooter>
@@ -43,6 +47,7 @@ const authStore = useAuthStore()
 const examStore = useExamStore()
 
 const name = ref('')
+const birthDate = ref('')
 const loading = ref(true)
 const loginLoading = ref(false)
 
@@ -52,10 +57,13 @@ onMounted(async () => {
 })
 
 async function handleLogin() {
-  if (!name.value.trim() || !examStore.activeExam) return
+  if (!name.value.trim() || !/^\d{8}$/.test(birthDate.value) || !examStore.activeExam) return
   loginLoading.value = true
   try {
-    await authStore.login(name.value)
+    // 19950719 → 1995-07-19 형태로 변환 (백엔드 LocalDate가 yyyy-MM-dd를 기대)
+    const raw = birthDate.value
+    const formatted = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`
+    await authStore.login(name.value, formatted)
     router.push(`/exam/take/${examStore.activeExam.id}`)
   } catch (e) {
     alert('로그인 실패: ' + (e.response?.data?.message || e.message))

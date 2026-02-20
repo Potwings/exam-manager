@@ -28,6 +28,7 @@
           <TableHeader>
             <TableRow>
               <TableHead>이름</TableHead>
+              <TableHead>생년월일</TableHead>
               <TableHead>점수</TableHead>
               <TableHead>제출일</TableHead>
             </TableRow>
@@ -35,6 +36,7 @@
           <TableBody>
             <TableRow v-for="r in results" :key="r.examineeId">
               <TableCell class="font-medium">{{ r.examineeName }}</TableCell>
+              <TableCell class="text-muted-foreground">{{ r.examineeBirthDate || '-' }}</TableCell>
               <TableCell>
                 <Badge :variant="r.totalScore >= r.maxScore * 0.6 ? 'default' : 'destructive'">
                   {{ r.totalScore }} / {{ r.maxScore }}

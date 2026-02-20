@@ -7,16 +7,24 @@
         </router-link>
         <Separator orientation="vertical" class="h-6" />
         <nav class="flex items-center gap-1">
-          <Button variant="ghost" size="sm" as-child>
-            <router-link to="/admin/exams">Manage</router-link>
-          </Button>
-          <Button variant="ghost" size="sm" as-child>
-            <router-link to="/admin/scores">Scores</router-link>
-          </Button>
+          <template v-if="authStore.admin">
+            <Button variant="ghost" size="sm" as-child>
+              <router-link to="/admin/exams">Manage</router-link>
+            </Button>
+            <Button variant="ghost" size="sm" as-child>
+              <router-link to="/admin/scores">Scores</router-link>
+            </Button>
+          </template>
           <Button variant="ghost" size="sm" as-child>
             <router-link to="/exam/login">Exam</router-link>
           </Button>
         </nav>
+        <div v-if="authStore.admin" class="ml-auto flex items-center gap-2">
+          <span class="text-sm text-muted-foreground">{{ authStore.admin.username }}</span>
+          <Button variant="ghost" size="icon" @click="handleLogout">
+            <LogOut class="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </header>
     <main class="max-w-5xl mx-auto px-6 py-8">
@@ -26,6 +34,22 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { LogOut } from 'lucide-vue-next'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+onMounted(() => {
+  authStore.checkAdmin()
+})
+
+async function handleLogout() {
+  await authStore.logoutAdmin()
+  router.push('/admin/login')
+}
 </script>
