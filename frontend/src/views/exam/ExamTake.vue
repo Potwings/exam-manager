@@ -49,14 +49,15 @@
                 <option value="sql">SQL</option>
               </select>
             </div>
-            <vue-monaco-editor
-              :value="answers[problem.id] || ''"
-              @change="(val) => answers[problem.id] = val"
-              :language="languages[problem.id] || 'java'"
-              theme="vs-dark"
-              :height="200"
-              :options="editorOptions"
-            />
+            <div style="height: 200px">
+              <vue-monaco-editor
+                :value="answers[problem.id] || ''"
+                @change="(val) => answers[problem.id] = val"
+                :language="languages[problem.id] || 'java'"
+                theme="vs-dark"
+                :options="editorOptions"
+              />
+            </div>
           </div>
 
           <Textarea
