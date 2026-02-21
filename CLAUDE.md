@@ -221,6 +221,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 이름+생년월일 find-or-create — **Public** |
 | POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (재시험 방지, 간소 응답) — **Public** |
 | GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 — **Admin** |
+| PATCH | `/api/submissions/{id}` | SubmissionController | 채점 결과 수정 (득점/피드백) — **Admin** |
 | GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 — **Admin** |
 | GET | `/api/ai-assist/status` | AiAssistController | AI 출제 도우미 사용 가능 여부 확인 — **Admin** |
 | POST | `/api/ai-assist/generate` | AiAssistController | AI 문제/채점기준 자동 생성 — **Admin** |
@@ -240,6 +241,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | ExamineeLoginRequest | 로그인 요청 (name, **birthDate**) |
 | ExamineeResponse | 시험자 응답 (id, name, **birthDate**) |
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
+| SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback) |
 | SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**}]) |
 | ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, submittedAt) |
 
@@ -297,7 +299,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | Public | `GET /api/exams/active`, `POST /api/examinees/**`, `POST /api/submissions` | permitAll |
 | Public | `/api/admin/login`, `/api/admin/me` | permitAll |
 | Admin | `GET/POST/PUT/DELETE/PATCH /api/exams/**` (active 제외) | authenticated |
-| Admin | `GET /api/submissions/result`, `/api/scores/**`, `/api/ai-assist/**` | authenticated |
+| Admin | `GET/PATCH /api/submissions/**` (POST 제외), `/api/scores/**`, `/api/ai-assist/**` | authenticated |
 
 ### 수험자 인증 (이름 + 생년월일)
 - `Examinee` 엔티티에 `birthDate` (LocalDate) 필드 추가
@@ -340,4 +342,5 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - [x] 관리자 인증/권한 분리
 - [ ] 서비스/컨트롤러 단위 테스트 추가
 - [x] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인) — ScoreDetail.vue 별도 페이지
+- [x] 채점 결과 첨삭 기능 (관리자가 득점/피드백 인라인 수정) — PATCH /api/submissions/{id}
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)

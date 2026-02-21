@@ -86,6 +86,10 @@ export function fetchResult(examineeId, examId) {
   return api.get('/submissions/result', { params: { examineeId, examId } })
 }
 
+export function updateSubmission(id, data) {
+  return api.patch(`/submissions/${id}`, data)
+}
+
 // ===== Score =====
 
 export function fetchScores(examId) {

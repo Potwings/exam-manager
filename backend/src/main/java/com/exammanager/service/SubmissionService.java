@@ -1,6 +1,7 @@
 package com.exammanager.service;
 
 import com.exammanager.dto.SubmissionRequest;
+import com.exammanager.dto.SubmissionUpdateRequest;
 import com.exammanager.dto.SubmissionResultResponse;
 import com.exammanager.dto.ScoreSummaryResponse;
 import com.exammanager.entity.*;
@@ -83,6 +84,22 @@ public class SubmissionService {
                 .findByExamineeIdAndProblemExamId(examinee.getId(), request.getExamId());
 
         return buildResult(examinee, request.getExamId(), problems, allSubmissions);
+    }
+
+    @Transactional
+    public Submission updateSubmission(Long id, SubmissionUpdateRequest request) {
+        Submission submission = submissionRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "제출 답안을 찾을 수 없습니다"));
+
+        int maxScore = submission.getProblem().getAnswer() != null
+                ? submission.getProblem().getAnswer().getScore() : 0;
+        if (request.getEarnedScore() > maxScore) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "득점이 배점을 초과할 수 없습니다");
+        }
+
+        submission.setEarnedScore(request.getEarnedScore());
+        submission.setFeedback(request.getFeedback());
+        return submissionRepository.save(submission);
     }
 
     public SubmissionResultResponse getResult(Long examineeId, Long examId) {
