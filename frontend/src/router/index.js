@@ -6,6 +6,7 @@ import ExamManage from '../views/admin/ExamManage.vue'
 import ExamCreate from '../views/admin/ExamCreate.vue'
 import ExamDetail from '../views/admin/ExamDetail.vue'
 import ScoreBoard from '../views/admin/ScoreBoard.vue'
+import ScoreDetail from '../views/admin/ScoreDetail.vue'
 import ExamLogin from '../views/exam/ExamLogin.vue'
 import ExamTake from '../views/exam/ExamTake.vue'
 
@@ -17,6 +18,7 @@ const routes = [
   { path: '/admin/exams/:id/edit', component: ExamCreate, meta: { requiresAdmin: true } },
   { path: '/admin/exams/:id', component: ExamDetail, meta: { requiresAdmin: true } },
   { path: '/admin/scores', component: ScoreBoard, meta: { requiresAdmin: true } },
+  { path: '/admin/scores/:examId/:examineeId', component: ScoreDetail, meta: { requiresAdmin: true } },
   { path: '/exam/login', component: ExamLogin },
   { path: '/exam/take/:examId', component: ExamTake, meta: { requiresExaminee: true } }
 ]

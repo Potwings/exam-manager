@@ -27,7 +27,7 @@ exam-scorer/
 │       ├── lib/             # utils.ts (cn 헬퍼), markdown.js (markdown-it 래퍼)
 │       ├── stores/          # Pinia (authStore, examStore)
 │       ├── views/
-│       │   ├── admin/       # AdminLogin, ExamManage, ExamCreate, ExamDetail, ScoreBoard
+│       │   ├── admin/       # AdminLogin, ExamManage, ExamCreate, ExamDetail, ScoreBoard, ScoreDetail
 │       │   └── exam/        # ExamLogin, ExamTake
 │       └── router/          # Vue Router
 ├── backend/                 # Spring Boot
@@ -253,6 +253,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | `/admin/exams/:id` | ExamDetail | 시험 상세 조회 — **Admin 가드** |
 | `/admin/exams/:id/edit` | ExamCreate | 시험 수정 — **Admin 가드** |
 | `/admin/scores` | ScoreBoard | 채점 결과 대시보드 — **Admin 가드** |
+| `/admin/scores/:examId/:examineeId` | ScoreDetail | 수험자별 채점 상세 — **Admin 가드** |
 | `/exam/login` | ExamLogin | 시험자 로그인 — 이름 + 생년월일 입력 |
 | `/exam/take/:examId` | ExamTake | 시험 응시 — **Examinee 가드**, 제출 후 완료 메시지 표시 |
 
@@ -338,5 +339,5 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### Phase 3 — 고도화
 - [x] 관리자 인증/권한 분리
 - [ ] 서비스/컨트롤러 단위 테스트 추가
-- [ ] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인)
+- [x] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인) — ScoreDetail.vue 별도 페이지
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)
