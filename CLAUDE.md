@@ -83,7 +83,7 @@ npx shadcn-vue@latest add <component-name>
 - **라우터**: `src/router/index.js`에 정의. views는 `admin/`, `exam/` 디렉토리로 구분
 - **API 호출**: `src/api/index.js`의 axios 인스턴스 + named export 함수 사용. Vite proxy로 `/api` → `localhost:8080` 연결
 - **코드 에디터**: Monaco Editor는 `main.js`에서 글로벌 플러그인으로 등록. CDN(`jsdelivr`)에서 로드
-- **헤더**: 좌상단 서비스명 "ExamManager" 표시 (`App.vue`)
+- **헤더**: 좌상단 서비스명 "ExamManager" 표시. 관리자 미로그인 시 우측에 "관리자 로그인" 링크 표시 (`text-xs`, `text-muted-foreground/60`로 눈에 띄지 않게 처리) (`App.vue`)
 
 ### Backend
 - **패키지**: `com.exammanager` 하위 `config`, `controller`, `service`, `repository`, `entity`, `dto`
@@ -320,7 +320,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### 라우터 가드
 - `/admin/*` (login 제외) — `meta.requiresAdmin: true`, `checkAdmin()` await 후 인증 확인
 - `/exam/take/:examId` — `meta.requiresExaminee: true`, `authStore.examinee` 확인
-- `App.vue` — Manage, Scores 링크는 `authStore.admin` 있을 때만 표시
+- `App.vue` — Manage, Scores 링크 + 사용자명/로그아웃은 `authStore.admin` 있을 때만 표시, 미로그인 시 "관리자 로그인" 링크 표시
 
 ### 답안 제출 결과 관리자 전용화
 - `POST /api/submissions` — 채점은 백엔드에서 수행하되, 응답은 성공 메시지만 반환 (점수/피드백 미포함)
@@ -343,4 +343,5 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - [ ] 서비스/컨트롤러 단위 테스트 추가
 - [x] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인) — ScoreDetail.vue 별도 페이지
 - [x] 채점 결과 첨삭 기능 (관리자가 득점/피드백 인라인 수정) — PATCH /api/submissions/{id}
+- [x] 관리자 로그인 페이지 접근 개선 — 헤더 우측에 "관리자 로그인" 링크 추가 (미로그인 시만 표시)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)

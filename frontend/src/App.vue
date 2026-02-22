@@ -19,11 +19,16 @@
             <router-link to="/exam/login">Exam</router-link>
           </Button>
         </nav>
-        <div v-if="authStore.admin" class="ml-auto flex items-center gap-2">
-          <span class="text-sm text-muted-foreground">{{ authStore.admin.username }}</span>
-          <Button variant="ghost" size="icon" @click="handleLogout">
-            <LogOut class="h-4 w-4" />
-          </Button>
+        <div class="ml-auto flex items-center gap-2">
+          <template v-if="authStore.admin">
+            <span class="text-sm text-muted-foreground">{{ authStore.admin.username }}</span>
+            <Button variant="ghost" size="icon" @click="handleLogout">
+              <LogOut class="h-4 w-4" />
+            </Button>
+          </template>
+          <router-link v-else to="/admin/login" class="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+            관리자 로그인
+          </router-link>
         </div>
       </div>
     </header>
