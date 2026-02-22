@@ -48,7 +48,11 @@ public class AdminController {
             context.setAuthentication(authentication);
             SecurityContextHolder.setContext(context);
 
-            // 프로그래매틱 인증에서는 SecurityContext를 세션에 수동 저장해야 함
+            // Session Fixation 방지: 인증 성공 후 기존 세션을 무효화하고 새 세션을 발급
+            HttpSession oldSession = httpRequest.getSession(false);
+            if (oldSession != null) {
+                oldSession.invalidate();
+            }
             HttpSession session = httpRequest.getSession(true);
             session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
 
@@ -91,6 +95,9 @@ public class AdminController {
     public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest request,
                                              HttpServletRequest httpRequest) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return ResponseEntity.status(401).body(Map.of("message", "인증되지 않았습니다"));
+        }
         String username = auth.getName();
 
         Admin admin = adminRepository.findByUsername(username).orElse(null);
@@ -146,6 +153,9 @@ public class AdminController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            return ResponseEntity.status(401).body(Map.of("message", "인증되지 않았습니다"));
+        }
         String currentUsername = auth.getName();
 
         Admin target = adminRepository.findById(id).orElse(null);
