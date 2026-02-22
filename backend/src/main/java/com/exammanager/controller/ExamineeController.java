@@ -18,11 +18,15 @@ public class ExamineeController {
 
     @PostMapping("/login")
     public ResponseEntity<ExamineeResponse> login(@Valid @RequestBody ExamineeLoginRequest request) {
-        Examinee examinee = examineeRepository.save(
-                Examinee.builder()
-                        .name(request.getName())
-                        .build()
-        );
+        // 이름+생년월일로 기존 수험자 조회 → 없으면 신규 생성 (find-or-create)
+        Examinee examinee = examineeRepository
+                .findByNameAndBirthDate(request.getName(), request.getBirthDate())
+                .orElseGet(() -> examineeRepository.save(
+                        Examinee.builder()
+                                .name(request.getName())
+                                .birthDate(request.getBirthDate())
+                                .build()
+                ));
         return ResponseEntity.ok(ExamineeResponse.from(examinee));
     }
 }

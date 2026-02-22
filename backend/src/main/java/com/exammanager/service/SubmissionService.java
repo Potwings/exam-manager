@@ -1,6 +1,7 @@
 package com.exammanager.service;
 
 import com.exammanager.dto.SubmissionRequest;
+import com.exammanager.dto.SubmissionUpdateRequest;
 import com.exammanager.dto.SubmissionResultResponse;
 import com.exammanager.dto.ScoreSummaryResponse;
 import com.exammanager.entity.*;
@@ -37,6 +38,11 @@ public class SubmissionService {
     @Transactional
     public SubmissionResultResponse submitAnswers(SubmissionRequest request) {
         examService.findById(request.getExamId());
+
+        // 재시험 방지: 이미 해당 시험에 제출한 기록이 있으면 409 반환
+        if (submissionRepository.existsByExamineeIdAndProblemExamId(request.getExamineeId(), request.getExamId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 응시 완료한 시험입니다");
+        }
 
         Examinee examinee = examineeRepository.findById(request.getExamineeId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + request.getExamineeId()));
@@ -80,6 +86,22 @@ public class SubmissionService {
         return buildResult(examinee, request.getExamId(), problems, allSubmissions);
     }
 
+    @Transactional
+    public Submission updateSubmission(Long id, SubmissionUpdateRequest request) {
+        Submission submission = submissionRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "제출 답안을 찾을 수 없습니다"));
+
+        int maxScore = submission.getProblem().getAnswer() != null
+                ? submission.getProblem().getAnswer().getScore() : 0;
+        if (request.getEarnedScore() > maxScore) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "득점이 배점을 초과할 수 없습니다");
+        }
+
+        submission.setEarnedScore(request.getEarnedScore());
+        submission.setFeedback(request.getFeedback());
+        return submissionRepository.save(submission);
+    }
+
     public SubmissionResultResponse getResult(Long examineeId, Long examId) {
         examService.findById(examId);
 
@@ -113,6 +135,7 @@ public class SubmissionService {
                     return ScoreSummaryResponse.builder()
                             .examineeId(ex.getId())
                             .examineeName(ex.getName())
+                            .examineeBirthDate(ex.getBirthDate())
                             .totalScore(total)
                             .maxScore(maxScore)
                             .submittedAt(subs.stream()

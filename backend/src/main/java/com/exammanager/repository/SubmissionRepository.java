@@ -12,4 +12,5 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     Optional<Submission> findByExamineeIdAndProblemId(Long examineeId, Long problemId);
 
     boolean existsByProblemExamId(Long examId);
+    boolean existsByExamineeIdAndProblemExamId(Long examineeId, Long examId);
 }
