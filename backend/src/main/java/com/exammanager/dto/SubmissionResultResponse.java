@@ -24,5 +24,7 @@ public class SubmissionResultResponse {
         private Integer maxScore;
         private String feedback;
         private String annotatedAnswer;
+        private String problemContent;
+        private String problemContentType;
     }
 }

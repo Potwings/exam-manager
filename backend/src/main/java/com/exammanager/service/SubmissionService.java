@@ -170,6 +170,8 @@ public class SubmissionService {
                         .maxScore(s.getProblem().getAnswer() != null ? s.getProblem().getAnswer().getScore() : 0)
                         .feedback(s.getFeedback())
                         .annotatedAnswer(s.getAnnotatedAnswer())
+                        .problemContent(s.getProblem().getContent())
+                        .problemContentType(s.getProblem().getContentType())
                         .build())
                 .sorted(Comparator.comparingInt(SubmissionResultResponse.SubmissionDetail::getProblemNumber))
                 .toList();

@@ -48,6 +48,12 @@
           </div>
         </CardHeader>
         <CardContent class="space-y-3">
+          <div v-if="s.problemContent">
+            <p class="text-sm font-medium text-muted-foreground mb-1">문제</p>
+            <div v-if="s.problemContentType === 'MARKDOWN'" class="prose prose-sm dark:prose-invert max-w-none bg-muted rounded-md p-3" v-html="renderMarkdown(s.problemContent)" />
+            <pre v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ s.problemContent }}</pre>
+          </div>
+          <Separator v-if="s.problemContent" />
           <div>
             <p class="text-sm font-medium text-muted-foreground mb-1">제출 답안</p>
             <pre v-if="!s.annotatedAnswer" class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ s.submittedAnswer || '(미작성)' }}</pre>
@@ -127,6 +133,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Loader2, Pencil } from 'lucide-vue-next'
+import { renderMarkdown } from '@/lib/markdown.js'
 
 const router = useRouter()
 const route = useRoute()
