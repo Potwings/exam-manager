@@ -23,5 +23,6 @@ public class SubmissionResultResponse {
         private Integer earnedScore;
         private Integer maxScore;
         private String feedback;
+        private String annotatedAnswer;
     }
 }

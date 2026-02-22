@@ -31,6 +31,9 @@ public class Submission {
     @Column(columnDefinition = "TEXT")
     private String feedback;
 
+    @Column(columnDefinition = "TEXT")
+    private String annotatedAnswer;
+
     private LocalDateTime submittedAt;
 
     @PrePersist

@@ -50,7 +50,24 @@
         <CardContent class="space-y-3">
           <div>
             <p class="text-sm font-medium text-muted-foreground mb-1">제출 답안</p>
-            <pre class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ s.submittedAnswer || '(미작성)' }}</pre>
+            <pre v-if="!s.annotatedAnswer" class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ s.submittedAnswer || '(미작성)' }}</pre>
+            <div v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words font-mono">
+              <template v-for="(part, idx) in parseAnnotatedAnswer(s.annotatedAnswer)" :key="idx">
+                <span
+                  v-if="part.status === 'correct'"
+                  class="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded px-0.5"
+                >{{ part.text }}</span>
+                <span
+                  v-else-if="part.status === 'incorrect'"
+                  class="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded px-0.5"
+                >{{ part.text }}</span>
+                <span
+                  v-else-if="part.status === 'partial'"
+                  class="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded px-0.5"
+                >{{ part.text }}</span>
+                <span v-else>{{ part.text }}</span>
+              </template>
+            </div>
           </div>
           <Separator />
 
@@ -126,6 +143,30 @@ const editingId = ref(null)
 const editForm = reactive({ earnedScore: 0, feedback: '' })
 const saving = ref(false)
 const editError = ref('')
+
+function parseAnnotatedAnswer(text) {
+  if (!text) return []
+  const parts = []
+  const statusMap = { '정답': 'correct', '오답': 'incorrect', '부분': 'partial' }
+  // 닫는 태그가 있는 쌍과, 닫는 태그 없이 여는 태그만 있는 경우 모두 매칭
+  // 1) [정답]...[/정답] — 닫는 태그 있는 완전한 쌍
+  // 2) [정답]...(?=[오답]|[부분]|[정답]|$) — 닫는 태그 없이 다음 여는 태그 또는 끝까지
+  const regex = /\[(정답|오답|부분)\]([\s\S]*?)(?:\[\/\1\]|(?=\[(?:정답|오답|부분)\])|$)/g
+  let lastIndex = 0
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    if (match[0].length === 0) break
+    if (match.index > lastIndex) {
+      parts.push({ status: 'plain', text: text.slice(lastIndex, match.index) })
+    }
+    parts.push({ status: statusMap[match[1]], text: match[2] })
+    lastIndex = regex.lastIndex
+  }
+  if (lastIndex < text.length) {
+    parts.push({ status: 'plain', text: text.slice(lastIndex) })
+  }
+  return parts
+}
 
 onMounted(async () => {
   try {
