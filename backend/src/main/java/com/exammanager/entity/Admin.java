@@ -2,25 +2,29 @@ package com.exammanager.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "examinees", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"name", "birth_date"})
-})
+@Table(name = "admins")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class Examinee {
+public class Admin {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String name;
+    @Column(unique = true, nullable = false)
+    private String username;
 
     @Column(nullable = false)
-    private LocalDate birthDate;
+    private String password;
+
+    @Column(nullable = false)
+    private String role;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean initLogin = true;
 
     private LocalDateTime createdAt;
 

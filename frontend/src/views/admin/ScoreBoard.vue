@@ -28,13 +28,20 @@
           <TableHeader>
             <TableRow>
               <TableHead>이름</TableHead>
+              <TableHead>생년월일</TableHead>
               <TableHead>점수</TableHead>
               <TableHead>제출일</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="r in results" :key="r.examineeId">
+            <TableRow
+              v-for="r in results"
+              :key="r.examineeId"
+              class="cursor-pointer hover:bg-muted/50"
+              @click="goToDetail(r)"
+            >
               <TableCell class="font-medium">{{ r.examineeName }}</TableCell>
+              <TableCell class="text-muted-foreground">{{ r.examineeBirthDate || '-' }}</TableCell>
               <TableCell>
                 <Badge :variant="r.totalScore >= r.maxScore * 0.6 ? 'default' : 'destructive'">
                   {{ r.totalScore }} / {{ r.maxScore }}
@@ -57,11 +64,13 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useExamStore } from '@/stores/examStore'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 
+const router = useRouter()
 const examStore = useExamStore()
 const results = ref([])
 const selectedExamId = ref('')
@@ -69,7 +78,8 @@ const selectedExamId = ref('')
 onMounted(async () => {
   await examStore.loadExams()
   if (examStore.exams.length > 0) {
-    selectedExamId.value = examStore.exams[0].id
+    const activeExam = examStore.exams.find(e => e.active)
+    selectedExamId.value = activeExam ? activeExam.id : examStore.exams[0].id
     await loadResults()
   }
 })
@@ -80,6 +90,10 @@ async function loadResults() {
     return
   }
   results.value = await examStore.loadScores(selectedExamId.value)
+}
+
+function goToDetail(row) {
+  router.push(`/admin/scores/${selectedExamId.value}/${row.examineeId}`)
 }
 
 function formatDate(dt) {

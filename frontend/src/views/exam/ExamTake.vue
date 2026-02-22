@@ -1,63 +1,84 @@
 <template>
   <div class="space-y-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight">{{ examStore.currentExam?.title || '시험' }}</h1>
-      <p class="text-muted-foreground">모든 문제에 답변한 후 제출하세요.</p>
-    </div>
+    <!-- 제출 완료 상태: 완료 메시지 Card 표시 -->
+    <template v-if="submitted">
+      <div class="flex items-center justify-center min-h-[40vh]">
+        <Card class="w-full max-w-md text-center">
+          <CardHeader>
+            <CardTitle class="text-2xl">제출 완료</CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <p class="text-muted-foreground">답안이 정상적으로 제출되었습니다.</p>
+          </CardContent>
+          <CardFooter class="justify-center">
+            <Button @click="router.push('/exam/login')">돌아가기</Button>
+          </CardFooter>
+        </Card>
+      </div>
+    </template>
 
-    <Card v-for="problem in examStore.problems" :key="problem.id" class="relative">
-      <CardHeader>
-        <CardTitle class="text-base">
-          <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-3">
-        <!-- 문제 내용: contentType에 따라 렌더링 -->
-        <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(problem.content)"></div>
-        <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ problem.content }}</pre>
+    <!-- 시험 응시 상태 -->
+    <template v-else>
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">{{ examStore.currentExam?.title || '시험' }}</h1>
+        <p class="text-muted-foreground">모든 문제에 답변한 후 제출하세요.</p>
+      </div>
 
-        <!-- 답안 입력: 코드 문제면 Monaco, 아니면 Textarea -->
-        <div v-if="isCodeProblem(problem)" class="border rounded-md overflow-hidden">
-          <div class="flex items-center justify-between bg-muted px-3 py-1.5">
-            <span class="text-xs text-muted-foreground font-mono">Code Editor</span>
-            <select
-              v-model="languages[problem.id]"
-              class="text-xs bg-transparent border rounded px-1.5 py-0.5"
-            >
-              <option value="java">Java</option>
-              <option value="javascript">JavaScript</option>
-              <option value="python">Python</option>
-              <option value="sql">SQL</option>
-            </select>
+      <Card v-for="problem in examStore.problems" :key="problem.id" class="relative">
+        <CardHeader>
+          <CardTitle class="text-base">
+            <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          <!-- 문제 내용: contentType에 따라 렌더링 -->
+          <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(problem.content)"></div>
+          <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ problem.content }}</pre>
+
+          <!-- 답안 입력: 코드 문제면 Monaco, 아니면 Textarea -->
+          <div v-if="isCodeProblem(problem)" class="border rounded-md overflow-hidden">
+            <div class="flex items-center justify-between bg-muted px-3 py-1.5">
+              <span class="text-xs text-muted-foreground font-mono">Code Editor</span>
+              <select
+                v-model="languages[problem.id]"
+                class="text-xs bg-transparent border rounded px-1.5 py-0.5"
+              >
+                <option value="java">Java</option>
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+                <option value="sql">SQL</option>
+              </select>
+            </div>
+            <div style="height: 200px">
+              <vue-monaco-editor
+                :value="answers[problem.id] || ''"
+                @change="(val) => answers[problem.id] = val"
+                :language="languages[problem.id] || 'java'"
+                theme="vs-dark"
+                :options="editorOptions"
+              />
+            </div>
           </div>
-          <vue-monaco-editor
-            :value="answers[problem.id] || ''"
-            @change="(val) => answers[problem.id] = val"
-            :language="languages[problem.id] || 'java'"
-            theme="vs-dark"
-            :height="200"
-            :options="editorOptions"
+
+          <Textarea
+            v-else
+            v-model="answers[problem.id]"
+            placeholder="답변을 작성하세요..."
+            rows="3"
           />
-        </div>
+        </CardContent>
+      </Card>
 
-        <Textarea
-          v-else
-          v-model="answers[problem.id]"
-          placeholder="답변을 작성하세요..."
-          rows="3"
-        />
-      </CardContent>
-    </Card>
+      <div v-if="examStore.problems.length === 0" class="text-center py-12 text-muted-foreground">
+        문제를 불러오는 중...
+      </div>
 
-    <div v-if="examStore.problems.length === 0" class="text-center py-12 text-muted-foreground">
-      문제를 불러오는 중...
-    </div>
-
-    <div v-if="examStore.problems.length > 0" class="flex justify-end">
-      <Button size="lg" @click="handleSubmit" :disabled="loading">
-        {{ loading ? '제출 중...' : '답안 제출' }}
-      </Button>
-    </div>
+      <div v-if="examStore.problems.length > 0" class="flex justify-end">
+        <Button size="lg" @click="handleSubmit" :disabled="loading">
+          {{ loading ? '제출 중...' : '답안 제출' }}
+        </Button>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -68,7 +89,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useExamStore } from '@/stores/examStore'
 import { submitAnswers } from '@/api'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
@@ -81,6 +102,7 @@ const examStore = useExamStore()
 const answers = reactive({})
 const languages = reactive({})
 const loading = ref(false)
+const submitted = ref(false)
 
 const CODE_PROBLEM_NUMBERS = [9, 10, 11, 13, 14]
 
@@ -115,8 +137,18 @@ onMounted(async () => {
   }
 
   try {
-    await examStore.loadExam(examId)
-    await examStore.loadProblems(examId)
+    // 공개 API(loadActiveExam)로 시험 데이터 로드
+    if (!examStore.activeExam || String(examStore.activeExam.id) !== String(examId)) {
+      await examStore.loadActiveExam()
+    }
+    if (examStore.activeExam && String(examStore.activeExam.id) === String(examId)) {
+      examStore.currentExam = examStore.activeExam
+      examStore.problems = examStore.activeExam.problems || []
+    } else {
+      alert('시험을 찾을 수 없습니다.')
+      router.push('/exam/login')
+      return
+    }
   } catch (e) {
     alert('문제를 불러오지 못했습니다: ' + (e.response?.data?.message || e.message))
     router.push('/exam/login')
@@ -149,18 +181,20 @@ async function handleSubmit() {
       answer: answers[p.id] || ''
     }))
 
-    const { data } = await submitAnswers(
+    await submitAnswers(
       authStore.examinee.id,
       route.params.examId,
       answerList
     )
 
-    router.push({
-      path: '/exam/result',
-      query: { examineeId: authStore.examinee.id, examId: route.params.examId }
-    })
+    submitted.value = true
   } catch (e) {
-    alert('제출 실패: ' + (e.response?.data?.message || e.message))
+    if (e.response?.status === 409) {
+      alert('이미 응시 완료한 시험입니다.')
+      router.push('/exam/login')
+    } else {
+      alert('제출 실패: ' + (e.response?.data?.message || e.message))
+    }
   } finally {
     loading.value = false
   }
