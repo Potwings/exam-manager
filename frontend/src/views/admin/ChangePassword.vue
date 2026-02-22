@@ -65,9 +65,10 @@ async function handleChange() {
   loading.value = true
   error.value = ''
   try {
-    const { data } = await changePassword(currentPassword.value, newPassword.value)
-    authStore.admin = data
-    router.push('/admin/scores')
+    await changePassword(currentPassword.value, newPassword.value)
+    authStore.admin = null
+    window.alert('비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해주세요.')
+    router.push('/admin/login')
   } catch (e) {
     error.value = e.response?.data?.message || '비밀번호 변경에 실패했습니다'
   } finally {

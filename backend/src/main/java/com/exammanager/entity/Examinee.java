@@ -6,7 +6,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "examinees")
+@Table(name = "examinees", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"name", "birth_date"})
+})
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Examinee {
 
@@ -14,8 +16,10 @@ public class Examinee {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false)
     private LocalDate birthDate;
 
     private LocalDateTime createdAt;

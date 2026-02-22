@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -51,7 +52,7 @@ public class AdminController {
 
             Admin admin = adminRepository.findByUsername(request.getUsername()).orElseThrow();
             return ResponseEntity.ok(AdminResponse.from(admin));
-        } catch (Exception e) {
+        } catch (AuthenticationException e) {
             log.warn("관리자 로그인 실패: {}", request.getUsername());
             return ResponseEntity.status(401).body(Map.of("message", "아이디 또는 비밀번호가 올바르지 않습니다"));
         }
@@ -84,7 +85,8 @@ public class AdminController {
     }
 
     @PatchMapping("/change-password")
-    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest request,
+                                             HttpServletRequest httpRequest) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth.getName();
 
@@ -101,7 +103,15 @@ public class AdminController {
         admin.setInitLogin(false);
         adminRepository.save(admin);
         log.info("비밀번호 변경 완료: {}", username);
-        return ResponseEntity.ok(AdminResponse.from(admin));
+
+        // 세션 무효화 — 탈취된 세션 ID로의 접근을 차단하기 위해 비밀번호 변경 후 강제 로그아웃
+        HttpSession session = httpRequest.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        SecurityContextHolder.clearContext();
+
+        return ResponseEntity.ok(Map.of("message", "비밀번호가 변경되었습니다. 다시 로그인해주세요."));
     }
 
     @PostMapping("/register")

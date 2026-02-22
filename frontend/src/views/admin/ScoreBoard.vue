@@ -93,10 +93,7 @@ async function loadResults() {
 }
 
 function goToDetail(row) {
-  router.push({
-    path: `/admin/scores/${selectedExamId.value}/${row.examineeId}`,
-    query: { name: row.examineeName }
-  })
+  router.push(`/admin/scores/${selectedExamId.value}/${row.examineeId}`)
 }
 
 function formatDate(dt) {

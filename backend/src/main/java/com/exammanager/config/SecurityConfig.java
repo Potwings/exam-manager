@@ -18,16 +18,18 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.exammanager.repository.AdminRepository;
+
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final InitLoginFilter initLoginFilter;
+    private final AdminRepository adminRepository;
 
-    public SecurityConfig(InitLoginFilter initLoginFilter) {
-        this.initLoginFilter = initLoginFilter;
+    public SecurityConfig(AdminRepository adminRepository) {
+        this.adminRepository = adminRepository;
     }
 
     @Bean
@@ -59,7 +61,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .maximumSessions(1)
                 )
-                .addFilterAfter(initLoginFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterAfter(new InitLoginFilter(adminRepository), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

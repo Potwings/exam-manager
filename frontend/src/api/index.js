@@ -17,6 +17,8 @@ api.interceptors.response.use(
       !error.config.url.includes('/admin/login')
     ) {
       window.location.href = '/admin/login'
+      // 리다이렉트 중 caller의 catch 핸들러가 에러 UI를 표시하지 않도록 resolve되지 않는 promise 반환
+      return new Promise(() => {})
     }
     return Promise.reject(error)
   }

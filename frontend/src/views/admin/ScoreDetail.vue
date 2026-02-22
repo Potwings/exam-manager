@@ -131,7 +131,7 @@ onMounted(async () => {
   try {
     const { data } = await fetchResult(examineeId, examId)
     result.value = data
-    examineeName.value = route.query.name || data.examineeName || '수험자'
+    examineeName.value = data.examineeName || '수험자'
   } catch (e) {
     loadError.value = '채점 결과를 불러올 수 없습니다.'
   } finally {
@@ -154,6 +154,15 @@ function cancelEdit() {
 async function saveEdit(s) {
   saving.value = true
   editError.value = ''
+
+  // 득점 범위 검증 (0 ~ maxScore)
+  const score = Number(editForm.earnedScore)
+  if (isNaN(score) || score < 0 || score > s.maxScore) {
+    editError.value = `득점은 0 이상 ${s.maxScore} 이하여야 합니다.`
+    saving.value = false
+    return
+  }
+  editForm.earnedScore = score
 
   try {
     await updateSubmission(s.id, {

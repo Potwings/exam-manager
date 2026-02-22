@@ -74,7 +74,8 @@
             </TableRow>
           </TableBody>
         </Table>
-        <p v-if="admins.length === 0" class="text-center py-6 text-muted-foreground">
+        <p v-if="loadError" class="text-center py-6 text-sm text-destructive">{{ loadError }}</p>
+        <p v-else-if="admins.length === 0" class="text-center py-6 text-muted-foreground">
           등록된 관리자가 없습니다.
         </p>
       </CardContent>
@@ -104,12 +105,18 @@ const dialogOpen = ref(false)
 const registering = ref(false)
 const formError = ref('')
 const form = reactive({ username: '', password: '' })
+const loadError = ref('')
 
 onMounted(loadAdmins)
 
 async function loadAdmins() {
-  const { data } = await fetchAdminList()
-  admins.value = data
+  loadError.value = ''
+  try {
+    const { data } = await fetchAdminList()
+    admins.value = data
+  } catch {
+    loadError.value = '관리자 목록을 불러올 수 없습니다.'
+  }
 }
 
 async function handleRegister() {

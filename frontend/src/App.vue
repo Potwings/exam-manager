@@ -57,7 +57,10 @@ onMounted(() => {
 })
 
 async function handleLogout() {
-  await authStore.logoutAdmin()
-  router.push('/admin/login')
+  try {
+    await authStore.logoutAdmin()
+  } finally {
+    router.push('/admin/login')
+  }
 }
 </script>
