@@ -2,25 +2,22 @@
   <div class="min-h-screen bg-background">
     <header class="border-b">
       <div class="max-w-5xl mx-auto flex items-center gap-6 px-6 h-14">
-        <router-link to="/" class="font-bold text-lg tracking-tight">
+        <router-link to="/exam/login" class="font-bold text-lg tracking-tight">
           ExamManager
         </router-link>
         <Separator orientation="vertical" class="h-6" />
         <nav class="flex items-center gap-1">
           <template v-if="authStore.admin && !authStore.admin.initLogin">
             <Button variant="ghost" size="sm" as-child>
-              <router-link to="/admin/exams">Manage</router-link>
+              <router-link to="/admin/scores">채점결과</router-link>
             </Button>
             <Button variant="ghost" size="sm" as-child>
-              <router-link to="/admin/scores">Scores</router-link>
+              <router-link to="/admin/exams">시험관리</router-link>
             </Button>
             <Button variant="ghost" size="sm" as-child>
-              <router-link to="/admin/members">Members</router-link>
+              <router-link to="/admin/members">계정관리</router-link>
             </Button>
           </template>
-          <Button variant="ghost" size="sm" as-child>
-            <router-link to="/exam/login">Exam</router-link>
-          </Button>
         </nav>
         <div class="ml-auto flex items-center gap-2">
           <template v-if="authStore.admin">
