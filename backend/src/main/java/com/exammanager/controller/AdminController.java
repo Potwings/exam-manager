@@ -21,6 +21,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.Map;
@@ -50,7 +52,8 @@ public class AdminController {
             HttpSession session = httpRequest.getSession(true);
             session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
 
-            Admin admin = adminRepository.findByUsername(request.getUsername()).orElseThrow();
+            Admin admin = adminRepository.findByUsername(request.getUsername())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "관리자 정보 조회 실패"));
             return ResponseEntity.ok(AdminResponse.from(admin));
         } catch (AuthenticationException e) {
             log.warn("관리자 로그인 실패: {}", request.getUsername());
