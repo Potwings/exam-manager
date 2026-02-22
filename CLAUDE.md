@@ -27,12 +27,12 @@ exam-scorer/
 │       ├── lib/             # utils.ts (cn 헬퍼), markdown.js (markdown-it 래퍼)
 │       ├── stores/          # Pinia (authStore, examStore)
 │       ├── views/
-│       │   ├── admin/       # AdminLogin, ExamManage, ExamCreate, ExamDetail, ScoreBoard, ScoreDetail
+│       │   ├── admin/       # AdminLogin, ExamManage, ExamCreate, ExamDetail, ScoreBoard, ScoreDetail, AdminMembers, ChangePassword
 │       │   └── exam/        # ExamLogin, ExamTake
 │       └── router/          # Vue Router
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/exammanager/
-│       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, AdminInitializer
+│       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, AdminInitializer, InitLoginFilter
 │       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController
 │       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService, AdminUserDetailsService
 │       ├── repository/      # JPA Repositories (5개)
@@ -195,7 +195,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 
 | Entity | Table | 설명 |
 |--------|-------|------|
-| Admin | admins | 관리자 (username:`UNIQUE`, password:`BCrypt`, role) |
+| Admin | admins | 관리자 (username:`UNIQUE`, password:`BCrypt`, role, **initLogin**) |
 | Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**) |
 | Problem | problems | 문제 (problemNumber, content, **contentType**) → Exam N:1 |
 | Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
@@ -218,6 +218,10 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | POST | `/api/admin/login` | AdminController | 관리자 로그인 (세션 생성) — **Public** |
 | POST | `/api/admin/logout` | AdminController | 관리자 로그아웃 (세션 무효화) |
 | GET | `/api/admin/me` | AdminController | 현재 세션 관리자 정보 — **Public** |
+| POST | `/api/admin/register` | AdminController | 관리자 등록 — **Admin** |
+| GET | `/api/admin/list` | AdminController | 관리자 목록 조회 — **Admin** |
+| DELETE | `/api/admin/{id}` | AdminController | 관리자 삭제 (자기 자신 불가) — **Admin** |
+| PATCH | `/api/admin/change-password` | AdminController | 비밀번호 변경 + initLogin 해제 — **Admin** |
 | POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 이름+생년월일 find-or-create — **Public** |
 | POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (재시험 방지, 간소 응답) — **Public** |
 | GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 — **Admin** |
@@ -237,7 +241,9 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | AiAssistRequest | AI 출제 요청 (topic, difficulty 등) |
 | AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
 | AdminLoginRequest | 관리자 로그인 요청 (username, password) |
-| AdminResponse | 관리자 응답 (id, username, role) |
+| AdminRegisterRequest | 관리자 등록 요청 (username, password) |
+| ChangePasswordRequest | 비밀번호 변경 요청 (currentPassword, newPassword) |
+| AdminResponse | 관리자 응답 (id, username, role, **initLogin**, **createdAt**) |
 | ExamineeLoginRequest | 로그인 요청 (name, **birthDate**) |
 | ExamineeResponse | 시험자 응답 (id, name, **birthDate**) |
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
@@ -250,6 +256,8 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | Path | Component | 설명 |
 |------|-----------|------|
 | `/admin/login` | AdminLogin | 관리자 로그인 (아이디/비밀번호) |
+| `/admin/change-password` | ChangePassword | 비밀번호 변경 (최초 로그인 시 강제) — **Admin 가드** |
+| `/admin/members` | AdminMembers | 관리자 계정 관리 (등록/삭제) — **Admin 가드** |
 | `/admin/exams` | ExamManage | 시험 목록 관리 — **Admin 가드** |
 | `/admin/exams/create` | ExamCreate | 시험 생성 — **Admin 가드** |
 | `/admin/exams/:id` | ExamDetail | 시험 상세 조회 — **Admin 가드** |
@@ -293,6 +301,14 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - 미인증 시 401 반환 (`HttpStatusEntryPoint`), 로그인 폼 리다이렉트 안 함
 - 세션 정책: `IF_REQUIRED` + `maximumSessions(1)`
 
+### 최초 로그인 비밀번호 변경 (InitLoginFilter)
+- `Admin.initLogin` 필드 (`boolean`, 기본값 `true`) — 신규 관리자는 `true`, 비밀번호 변경 완료 후 `false`
+- `InitLoginFilter` (`OncePerRequestFilter`) — `initLogin=true`인 관리자가 `/api/**` 요청 시 403 차단
+  - 허용 경로: `/api/admin/change-password`, `/api/admin/me`, `/api/admin/logout`
+- 프론트엔드 라우터 가드 — `initLogin=true`이면 `/admin/change-password` 외 admin 페이지 접근 차단
+- 헤더 탭(Manage/Scores/Members) — `initLogin=true`이면 숨김 처리 (`App.vue`)
+- 로그인 후 리다이렉트: `initLogin=true` → `/admin/change-password`, `false` → `/admin/scores`
+
 ### 엔드포인트 보호 규칙
 | 분류 | 경로 | 접근 |
 |------|------|------|
@@ -320,7 +336,8 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### 라우터 가드
 - `/admin/*` (login 제외) — `meta.requiresAdmin: true`, `checkAdmin()` await 후 인증 확인
 - `/exam/take/:examId` — `meta.requiresExaminee: true`, `authStore.examinee` 확인
-- `App.vue` — Manage, Scores 링크 + 사용자명/로그아웃은 `authStore.admin` 있을 때만 표시, 미로그인 시 "관리자 로그인" 링크 표시
+- `initLogin` 가드 — `initLogin=true`이면 `/admin/change-password` 외 admin 페이지 접근 시 리다이렉트
+- `App.vue` — Manage, Scores, Members 링크는 `authStore.admin && !initLogin` 일 때만 표시. 미로그인 시 "관리자 로그인" 링크 표시
 
 ### 답안 제출 결과 관리자 전용화
 - `POST /api/submissions` — 채점은 백엔드에서 수행하되, 응답은 성공 메시지만 반환 (점수/피드백 미포함)
@@ -340,6 +357,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 
 ### Phase 3 — 고도화
 - [x] 관리자 인증/권한 분리
+- [x] 관리자 계정 관리 (등록/목록/삭제 + 최초 로그인 비밀번호 변경)
 - [ ] 서비스/컨트롤러 단위 테스트 추가
 - [x] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인) — ScoreDetail.vue 별도 페이지
 - [x] 채점 결과 첨삭 기능 (관리자가 득점/피드백 인라인 수정) — PATCH /api/submissions/{id}
