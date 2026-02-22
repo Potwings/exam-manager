@@ -47,8 +47,8 @@ async function handleLogin() {
   loading.value = true
   error.value = ''
   try {
-    await authStore.loginAdmin(username.value, password.value)
-    router.push('/admin/exams')
+    const data = await authStore.loginAdmin(username.value, password.value)
+    router.push(data.initLogin ? '/admin/change-password' : '/admin/scores')
   } catch (e) {
     error.value = e.response?.data?.message || '로그인에 실패했습니다'
   } finally {

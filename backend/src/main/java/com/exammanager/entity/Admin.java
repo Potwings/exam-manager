@@ -22,6 +22,10 @@ public class Admin {
     @Column(nullable = false)
     private String role;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean initLogin = true;
+
     private LocalDateTime createdAt;
 
     @PrePersist

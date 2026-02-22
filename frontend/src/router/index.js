@@ -7,16 +7,20 @@ import ExamCreate from '../views/admin/ExamCreate.vue'
 import ExamDetail from '../views/admin/ExamDetail.vue'
 import ScoreBoard from '../views/admin/ScoreBoard.vue'
 import ScoreDetail from '../views/admin/ScoreDetail.vue'
+import AdminMembers from '../views/admin/AdminMembers.vue'
+import ChangePassword from '../views/admin/ChangePassword.vue'
 import ExamLogin from '../views/exam/ExamLogin.vue'
 import ExamTake from '../views/exam/ExamTake.vue'
 
 const routes = [
   { path: '/', redirect: '/exam/login' },
   { path: '/admin/login', component: AdminLogin },
+  { path: '/admin/change-password', component: ChangePassword, meta: { requiresAdmin: true } },
   { path: '/admin/exams', component: ExamManage, meta: { requiresAdmin: true } },
   { path: '/admin/exams/create', component: ExamCreate, meta: { requiresAdmin: true } },
   { path: '/admin/exams/:id/edit', component: ExamCreate, meta: { requiresAdmin: true } },
   { path: '/admin/exams/:id', component: ExamDetail, meta: { requiresAdmin: true } },
+  { path: '/admin/members', component: AdminMembers, meta: { requiresAdmin: true } },
   { path: '/admin/scores', component: ScoreBoard, meta: { requiresAdmin: true } },
   { path: '/admin/scores/:examId/:examineeId', component: ScoreDetail, meta: { requiresAdmin: true } },
   { path: '/exam/login', component: ExamLogin },
@@ -38,6 +42,10 @@ router.beforeEach(async (to) => {
     }
     if (!authStore.admin) {
       return '/admin/login'
+    }
+    // initLogin이 true이면 비밀번호 변경 페이지 외 접근 차단
+    if (authStore.admin.initLogin && to.path !== '/admin/change-password') {
+      return '/admin/change-password'
     }
   }
 

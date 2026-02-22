@@ -23,6 +23,7 @@ public class AdminInitializer implements CommandLineRunner {
                     .username("admin")
                     .password(passwordEncoder.encode("admin123"))
                     .role("ADMIN")
+                    .initLogin(true)
                     .build();
             adminRepository.save(admin);
             log.info("초기 관리자 계정이 생성되었습니다. (username: admin, password: admin123)");

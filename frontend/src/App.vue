@@ -7,12 +7,15 @@
         </router-link>
         <Separator orientation="vertical" class="h-6" />
         <nav class="flex items-center gap-1">
-          <template v-if="authStore.admin">
+          <template v-if="authStore.admin && !authStore.admin.initLogin">
             <Button variant="ghost" size="sm" as-child>
               <router-link to="/admin/exams">Manage</router-link>
             </Button>
             <Button variant="ghost" size="sm" as-child>
               <router-link to="/admin/scores">Scores</router-link>
+            </Button>
+            <Button variant="ghost" size="sm" as-child>
+              <router-link to="/admin/members">Members</router-link>
             </Button>
           </template>
           <Button variant="ghost" size="sm" as-child>

@@ -36,6 +36,22 @@ export function adminMe() {
   return api.get('/admin/me')
 }
 
+export function adminRegister(username, password) {
+  return api.post('/admin/register', { username, password })
+}
+
+export function fetchAdminList() {
+  return api.get('/admin/list')
+}
+
+export function deleteAdmin(id) {
+  return api.delete(`/admin/${id}`)
+}
+
+export function changePassword(currentPassword, newPassword) {
+  return api.patch('/admin/change-password', { currentPassword, newPassword })
+}
+
 // ===== Exam =====
 
 export function fetchExams() {
