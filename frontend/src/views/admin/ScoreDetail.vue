@@ -212,7 +212,14 @@ function applyMarker(type) {
 
   textarea.focus()
   textarea.setSelectionRange(start, end)
-  document.execCommand('insertText', false, replacement)
+  const success = document.execCommand('insertText', false, replacement)
+
+  if (!success || textarea.value === editForm.annotatedAnswer) {
+    // execCommand 실패 시 수동 문자열 조합 폴백
+    const before = textarea.value.slice(0, start)
+    const after = textarea.value.slice(end)
+    textarea.value = before + replacement + after
+  }
 
   editForm.annotatedAnswer = textarea.value
 
