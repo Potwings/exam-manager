@@ -200,7 +200,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | Problem | problems | 문제 (problemNumber, content, **contentType**) → Exam N:1 |
 | Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
 | Examinee | examinees | 시험자 (name, **birthDate**) |
-| Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**) → Examinee, Problem N:1 |
+| Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**, **annotatedAnswer**) → Examinee, Problem N:1 |
 
 ## API Endpoints
 
@@ -225,7 +225,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 이름+생년월일 find-or-create — **Public** |
 | POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (재시험 방지, 간소 응답) — **Public** |
 | GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 — **Admin** |
-| PATCH | `/api/submissions/{id}` | SubmissionController | 채점 결과 수정 (득점/피드백) — **Admin** |
+| PATCH | `/api/submissions/{id}` | SubmissionController | 채점 결과 수정 (득점/피드백/답안서식) — **Admin** |
 | GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 — **Admin** |
 | GET | `/api/ai-assist/status` | AiAssistController | AI 출제 도우미 사용 가능 여부 확인 — **Admin** |
 | POST | `/api/ai-assist/generate` | AiAssistController | AI 문제/채점기준 자동 생성 — **Admin** |
@@ -247,7 +247,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | ExamineeLoginRequest | 로그인 요청 (name, **birthDate**) |
 | ExamineeResponse | 시험자 응답 (id, name, **birthDate**) |
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
-| SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback) |
+| SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback, **annotatedAnswer**) |
 | SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**}]) |
 | ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, submittedAt) |
 
@@ -344,6 +344,15 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - `ExamTake.vue` — 제출 후 "제출 완료" Card 표시 (결과 페이지 이동 제거)
 - `GET /api/submissions/result` — 관리자 인증 필수 (채점 결과 조회)
 
+### 채점 답안 마커 시스템 (ScoreDetail.vue)
+- 편집 모드에서 정답(초록)/오답(빨강)/부분(주황) 마커 버튼 제공
+- 마커 문법: `[정답]텍스트[/정답]`, `[오답]텍스트[/오답]`, `[부분]텍스트[/부분]`
+- 토글: 같은 마커 재클릭 시 해제, 다른 마커 클릭 시 교체
+- `execCommand('insertText')` 기반으로 Ctrl+Z 되돌리기 지원, 적용 후 선택 유지
+- `annotatedAnswer` 비어있으면 `submittedAnswer`로 자동 채움
+- `parseAnnotatedAnswer()` — 마커 텍스트를 파싱하여 색상 span으로 렌더링 (미리보기 + 읽기 모드)
+- `PATCH /api/submissions/{id}` — `annotatedAnswer` 필드로 저장
+
 ## AI 출제 도우미
 
 - 시험 생성/수정 시 문제별 AI 자동 생성 기능 (Sparkles 아이콘 버튼)
@@ -361,5 +370,6 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - [ ] 서비스/컨트롤러 단위 테스트 추가
 - [x] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인) — ScoreDetail.vue 별도 페이지
 - [x] 채점 결과 첨삭 기능 (관리자가 득점/피드백 인라인 수정) — PATCH /api/submissions/{id}
+- [x] 채점 답안 마커 툴바 (정답/오답/부분 색상 마커 적용·토글·교체, Ctrl+Z 지원)
 - [x] 관리자 로그인 페이지 접근 개선 — 헤더 우측에 "관리자 로그인" 링크 추가 (미로그인 시만 표시)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)

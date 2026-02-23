@@ -99,6 +99,7 @@ public class SubmissionService {
 
         submission.setEarnedScore(request.getEarnedScore());
         submission.setFeedback(request.getFeedback());
+        submission.setAnnotatedAnswer(request.getAnnotatedAnswer());
         return submissionRepository.save(submission);
     }
 
