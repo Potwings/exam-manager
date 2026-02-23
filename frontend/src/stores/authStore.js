@@ -3,18 +3,22 @@ import { ref } from 'vue'
 import { loginExaminee, adminLogin, adminLogout, adminMe } from '@/api'
 
 export const useAuthStore = defineStore('auth', () => {
-  const examinee = ref(null)
+  // localStorage에서 수험자 인증 정보 복원 (새로고침 대응)
+  const saved = localStorage.getItem('examinee')
+  const examinee = ref(saved ? JSON.parse(saved) : null)
   const admin = ref(null)
   const adminLoading = ref(true)
 
   async function login(name, birthDate) {
     const { data } = await loginExaminee(name, birthDate)
     examinee.value = data
+    localStorage.setItem('examinee', JSON.stringify(data))
     return data
   }
 
   function clear() {
     examinee.value = null
+    localStorage.removeItem('examinee')
   }
 
   async function loginAdmin(username, password) {

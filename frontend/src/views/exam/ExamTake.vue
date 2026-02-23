@@ -112,7 +112,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { renderMarkdown } from '@/lib/markdown'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
@@ -262,6 +262,15 @@ onMounted(async () => {
     }
   })
 
+  // localStorage에서 이전 답안 복원 (새로고침 대응)
+  const storageKey = `exam_${examId}_answers`
+  try {
+    const saved = localStorage.getItem(storageKey)
+    if (saved) {
+      Object.assign(answers, JSON.parse(saved))
+    }
+  } catch { /* 파싱 실패 시 무시 */ }
+
   // 시간 제한이 있는 시험: 세션 생성 후 타이머 시작
   if (examStore.currentExam?.timeLimit) {
     try {
@@ -280,6 +289,14 @@ onMounted(async () => {
     }
   }
 })
+
+// answers 변경 시 localStorage에 자동 저장 (새로고침 대응)
+watch(answers, (val) => {
+  const examId = route.params.examId
+  if (examId) {
+    localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(val))
+  }
+}, { deep: true })
 
 onUnmounted(() => {
   stopTimer()
@@ -306,6 +323,9 @@ async function handleSubmit() {
     )
 
     submitted.value = true
+    // 제출 성공 시 localStorage 정리
+    localStorage.removeItem(`exam_${route.params.examId}_answers`)
+    authStore.clear()
   } catch (e) {
     if (e.response?.status === 409) {
       alert('이미 응시 완료한 시험입니다.')

@@ -371,8 +371,16 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### 프론트엔드 인증 상태 (authStore)
 - `admin` ref — 관리자 세션 정보, `adminLoading` ref — 세션 확인 완료 전 가드 방지
 - `checkAdmin()` — `GET /api/admin/me`로 세션 복원 (페이지 새로고침 대응)
+- `examinee` ref — localStorage 연동: 로그인 시 저장, 스토어 초기화 시 복원, `clear()` 시 삭제
 - axios `withCredentials: true` — 세션 쿠키(JSESSIONID) 자동 포함
 - 401 인터셉터 — admin 페이지에서 세션 만료 시 `/admin/login`으로 리다이렉트
+
+### 응시 중 답안 유지 (localStorage)
+- **수험자 인증**: `localStorage.examinee` — 로그인 시 저장, 새로고침/브라우저 재시작 시 복원, 제출 후 삭제
+- **답안 자동 저장**: `localStorage.exam_{examId}_answers` — `watch(answers, ..., { deep: true })`로 변경 시마다 저장
+- **답안 복원**: `onMounted`에서 문제 로드 후 `Object.assign(answers, saved)`로 복원
+- **정리**: `handleSubmit()` 성공 시 답안 키 삭제 + `authStore.clear()`로 수험자 키 삭제
+- **타이머**: 서버 기반 ExamSession이므로 별도 저장 불필요 (새로고침 시 서버에서 남은 시간 재계산)
 
 ### 라우터 가드
 - `/admin/*` (login 제외) — `meta.requiresAdmin: true`, `checkAdmin()` await 후 인증 확인
@@ -412,4 +420,5 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - [x] 채점 결과 첨삭 기능 (관리자가 득점/피드백 인라인 수정) — PATCH /api/submissions/{id}
 - [x] 관리자 로그인 페이지 접근 개선 — 헤더 우측에 "관리자 로그인" 링크 추가 (미로그인 시만 표시)
 - [x] 시험 시간 제한 + 카운트다운 타이머 + 자동 제출 (ExamSession 서버 기반)
+- [x] 응시 중 답안 유지 — localStorage로 수험자 인증/답안 영속화 (새로고침/브라우저 재시작 대응)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)
