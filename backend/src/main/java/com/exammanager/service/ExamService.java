@@ -32,6 +32,7 @@ public class ExamService {
     public Exam createExam(ExamCreateRequest request) {
         Exam exam = Exam.builder()
                 .title(request.getTitle())
+                .timeLimit(request.getTimeLimit())
                 .build();
 
         List<ExamCreateRequest.ProblemInput> problemInputs = Optional.ofNullable(request.getProblems())
@@ -154,6 +155,7 @@ public class ExamService {
         }
 
         exam.setTitle(request.getTitle());
+        exam.setTimeLimit(request.getTimeLimit());
 
         // 제출 결과가 없으므로 orphanRemoval로 기존 문제/답안 안전 삭제
         exam.getProblems().clear();

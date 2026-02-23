@@ -11,6 +11,7 @@ public class ExamResponse {
     private String title;
     private int problemCount;
     private int totalScore;
+    private Integer timeLimit;
     private Boolean active;
     private LocalDateTime createdAt;
 
@@ -24,6 +25,7 @@ public class ExamResponse {
                 .title(exam.getTitle())
                 .problemCount(exam.getProblems().size())
                 .totalScore(total)
+                .timeLimit(exam.getTimeLimit())
                 .active(exam.getActive())
                 .createdAt(exam.getCreatedAt())
                 .build();

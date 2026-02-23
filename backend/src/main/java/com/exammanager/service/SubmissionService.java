@@ -5,6 +5,7 @@ import com.exammanager.dto.SubmissionUpdateRequest;
 import com.exammanager.dto.SubmissionResultResponse;
 import com.exammanager.dto.ScoreSummaryResponse;
 import com.exammanager.entity.*;
+import com.exammanager.repository.ExamSessionRepository;
 import com.exammanager.repository.ExamineeRepository;
 import com.exammanager.repository.ProblemRepository;
 import com.exammanager.repository.SubmissionRepository;
@@ -16,6 +17,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -26,6 +28,7 @@ public class SubmissionService {
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
     private final ExamineeRepository examineeRepository;
+    private final ExamSessionRepository examSessionRepository;
     private final GradingService gradingService;
     private final ExamService examService;
 
@@ -39,11 +42,24 @@ public class SubmissionService {
 
     @Transactional
     public void submitAnswers(SubmissionRequest request) {
-        examService.findById(request.getExamId());
+        Exam exam = examService.findById(request.getExamId());
 
         // 재시험 방지: 이미 해당 시험에 제출한 기록이 있으면 409 반환
         if (submissionRepository.existsByExamineeIdAndProblemExamId(request.getExamineeId(), request.getExamId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 응시 완료한 시험입니다");
+        }
+
+        // 시간 제한 검증: timeLimit이 설정된 시험은 시간 초과 여부 확인 (1분 여유시간 부여)
+        if (exam.getTimeLimit() != null) {
+            examSessionRepository.findByExamineeIdAndExamId(request.getExamineeId(), request.getExamId())
+                    .ifPresent(session -> {
+                        LocalDateTime deadline = session.getStartedAt()
+                                .plusMinutes(exam.getTimeLimit())
+                                .plusMinutes(1);
+                        if (LocalDateTime.now().isAfter(deadline)) {
+                            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "시험 시간이 종료되었습니다");
+                        }
+                    });
         }
 
         Examinee examinee = examineeRepository.findById(request.getExamineeId())

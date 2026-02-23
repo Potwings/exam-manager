@@ -36,6 +36,9 @@
           <span class="text-muted-foreground">시험: </span>
           <span class="font-medium">{{ examStore.activeExam.title }}</span>
           <span class="text-muted-foreground ml-1">({{ examStore.activeExam.problems.length }}문제)</span>
+          <span v-if="examStore.activeExam.timeLimit" class="text-muted-foreground ml-1">
+            · 제한시간 {{ examStore.activeExam.timeLimit }}분
+          </span>
         </div>
         <p v-else-if="!loading" class="text-center py-3 text-muted-foreground text-sm">
           현재 진행 중인 시험이 없습니다.

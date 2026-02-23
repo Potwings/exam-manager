@@ -114,6 +114,16 @@ export function fetchScores(examId) {
   return api.get(`/scores/exam/${examId}`)
 }
 
+// ===== Exam Session =====
+
+export function createExamSession(examineeId, examId) {
+  return api.post('/exam-sessions', { examineeId, examId })
+}
+
+export function getRemainingTime(examineeId, examId) {
+  return api.get('/exam-sessions/remaining', { params: { examineeId, examId } })
+}
+
 // ===== AI Assist =====
 
 export function checkAiStatus() {

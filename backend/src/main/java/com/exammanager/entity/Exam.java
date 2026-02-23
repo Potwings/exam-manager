@@ -27,6 +27,8 @@ public class Exam {
     @Builder.Default
     private Boolean active = false;
 
+    private Integer timeLimit;
+
     @Builder.Default
     @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Problem> problems = new ArrayList<>();

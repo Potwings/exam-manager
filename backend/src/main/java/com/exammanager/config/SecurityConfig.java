@@ -43,6 +43,7 @@ public class SecurityConfig {
                         // 수험자용 공개 엔드포인트
                         .requestMatchers(HttpMethod.GET, "/api/exams/active").permitAll()
                         .requestMatchers("/api/examinees/**").permitAll()
+                        .requestMatchers("/api/exam-sessions/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/submissions").permitAll()
                         // 관리자 전용 엔드포인트
                         .requestMatchers("/api/exams/**").authenticated()

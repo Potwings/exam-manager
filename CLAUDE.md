@@ -33,10 +33,10 @@ exam-scorer/
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/exammanager/
 │       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, AdminInitializer, InitLoginFilter
-│       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController
+│       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController, ExamSessionController
 │       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService, AdminUserDetailsService
-│       ├── repository/      # JPA Repositories (5개)
-│       ├── entity/          # Admin, Exam, Problem, Answer, Examinee, Submission
+│       ├── repository/      # JPA Repositories (6개)
+│       ├── entity/          # Admin, Exam, Problem, Answer, Examinee, Submission, ExamSession
 │       └── dto/             # 요청/응답 DTO
 │   └── src/main/resources/
 │       └── data/            # seed.sql (초기 시드 데이터, 수동 실행용)
@@ -200,16 +200,44 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - `DELETE /api/exams/{id}` → `deleted=true`, `active=false` 설정
 - DB 데이터 보존, 관리자 목록에서만 숨김 (`findByDeletedFalse()`)
 
+### 시험 시간 제한
+- `Exam.timeLimit` — nullable `Integer`, 분 단위 (null = 무제한)
+- 시험 생성/수정 시 관리자가 선택적으로 설정 (`ExamCreate.vue`)
+- 시험 목록에 Clock 아이콘 + `{N}분` 표시, 없으면 `-` (`ExamManage.vue`)
+- 수험자 로그인 시 `· 제한시간 {N}분` 조건부 표시 (`ExamLogin.vue`)
+
+#### ExamSession (서버 기반 시간 관리)
+- `ExamSession` 엔티티: `examinee` + `exam` + `startedAt` (서버 시간 기준)
+- `UNIQUE(examinee_id, exam_id)` — 동일 수험자의 중복 세션 방지
+- `POST /api/exam-sessions` — find-or-create 패턴 (DataIntegrityViolationException 처리)
+  - timeLimit 없으면 `{ remainingSeconds: null }` 반환 (세션 미생성)
+  - 있으면 `startedAt + timeLimit - now` 계산 → 남은 초 반환
+- 새로고침 시에도 서버 기준 시간이 이어짐 (클라이언트 조작 불가)
+
+#### 타이머 UI (`ExamTake.vue`)
+- **sticky 헤더**: 시험 제목 + 타이머 위젯이 `sticky top-0`으로 스크롤 시 상단 고정
+- **카운트다운**: `setInterval` 1초 간격, `MM:SS` monospace 포맷 (`tabular-nums`)
+- **색상 변화**: 평소 다크(slate-900) → 5분 이하 amber → 1분 이하 red + animate-pulse
+- **프로그레스 바**: 전체 시간 대비 남은 시간 비율, 색상 연동
+- **자동 제출**: 0초 도달 시 `handleSubmit()` 자동 호출 + "시간 종료" 메시지
+- **시간 제한 없는 시험**: 타이머 위젯 미표시 (`v-if="formattedTime !== null"`)
+
+#### 서버 측 시간 초과 검증 (`SubmissionService`)
+- timeLimit 있는 시험 제출 시 `startedAt + timeLimit + 1분(grace) < now` 검증
+- 초과 시 `403 FORBIDDEN` ("시험 시간이 종료되었습니다")
+- 1분 여유시간: 네트워크 지연 고려
+
 ## DB Schema (Entities)
 
 | Entity | Table | 설명 |
 |--------|-------|------|
 | Admin | admins | 관리자 (username:`UNIQUE`, password:`BCrypt`, role, **initLogin**) |
-| Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**) |
+| Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**, **timeLimit**) |
 | Problem | problems | 문제 (problemNumber, content, **contentType**) → Exam N:1 |
 | Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
 | Examinee | examinees | 시험자 (name, **birthDate**) |
 | Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**) → Examinee, Problem N:1 |
+| ExamSession | exam_sessions | 시험 세션 (startedAt) → Examinee, Exam N:1. `UNIQUE(examinee_id, exam_id)` |
 
 ## API Endpoints
 
@@ -238,14 +266,16 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 — **Admin** |
 | GET | `/api/ai-assist/status` | AiAssistController | AI 출제 도우미 사용 가능 여부 확인 — **Admin** |
 | POST | `/api/ai-assist/generate` | AiAssistController | AI 문제/채점기준 자동 생성 — **Admin** |
+| POST | `/api/exam-sessions` | ExamSessionController | 시험 세션 생성/조회 (find-or-create, 남은 시간 반환) — **Public** |
+| GET | `/api/exam-sessions/remaining` | ExamSessionController | 남은 시간 조회 (새로고침용) — **Public** |
 
 ## DTO
 
 | 클래스 | 용도 |
 |--------|------|
-| ExamCreateRequest | 시험 생성/수정 요청 (title, problems[{problemNumber, content, **contentType**, answerContent, score}]) |
-| ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, createdAt) |
-| ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions** 포함) |
+| ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, answerContent, score}]) |
+| ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, **timeLimit**, createdAt) |
+| ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions**, **timeLimit** 포함) |
 | ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, answerContent?, score?) — 답안은 관리자용만 포함 |
 | AiAssistRequest | AI 출제 요청 (topic, difficulty 등) |
 | AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
@@ -259,6 +289,8 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback) |
 | SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**}]) |
 | ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, **gradingComplete**, submittedAt) |
+| ExamSessionRequest | 시험 세션 생성 요청 (examineeId, examId) |
+| ExamSessionResponse | 시험 세션 응답 (remainingSeconds — null이면 시간 제한 없음) |
 
 ## Routes (Frontend)
 
@@ -321,7 +353,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### 엔드포인트 보호 규칙
 | 분류 | 경로 | 접근 |
 |------|------|------|
-| Public | `GET /api/exams/active`, `POST /api/examinees/**`, `POST /api/submissions` | permitAll |
+| Public | `GET /api/exams/active`, `POST /api/examinees/**`, `POST /api/submissions`, `/api/exam-sessions/**` | permitAll |
 | Public | `/api/admin/login`, `/api/admin/me` | permitAll |
 | Admin | `GET/POST/PUT/DELETE/PATCH /api/exams/**` (active 제외) | authenticated |
 | Admin | `GET/PATCH /api/submissions/**` (POST 제외), `/api/scores/**`, `/api/ai-assist/**` | authenticated |
@@ -350,7 +382,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 
 ### 답안 제출 결과 관리자 전용화
 - `POST /api/submissions` — 답안 즉시 저장 후 성공 메시지만 반환, 채점은 `@Async`로 백그라운드 실행
-- `ExamTake.vue` — 제출 후 "제출 완료" Card 표시 (결과 페이지 이동 제거), 타임아웃 30초
+- `ExamTake.vue` — 제출 후 "제출 완료" Card 표시 (결과 페이지 이동 제거), 시간 만료 시 "시간 종료" 표시
 - `GET /api/submissions/result` — 관리자 인증 필수 (채점 결과 조회)
 
 ### 채점 중 상태 표시 + 자동 폴링
@@ -379,4 +411,5 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - [x] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인) — ScoreDetail.vue 별도 페이지
 - [x] 채점 결과 첨삭 기능 (관리자가 득점/피드백 인라인 수정) — PATCH /api/submissions/{id}
 - [x] 관리자 로그인 페이지 접근 개선 — 헤더 우측에 "관리자 로그인" 링크 추가 (미로그인 시만 표시)
+- [x] 시험 시간 제한 + 카운트다운 타이머 + 자동 제출 (ExamSession 서버 기반)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)

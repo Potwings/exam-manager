@@ -10,9 +10,16 @@
         <CardTitle>기본 정보</CardTitle>
       </CardHeader>
       <CardContent>
-        <div class="space-y-2">
-          <Label for="title">시험 제목</Label>
-          <Input id="title" v-model="title" placeholder="백엔드 개발자 필기시험" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <Label for="title">시험 제목</Label>
+            <Input id="title" v-model="title" placeholder="백엔드 개발자 필기시험" />
+          </div>
+          <div class="space-y-2">
+            <Label for="timeLimit">시간 제한 (분)</Label>
+            <Input id="timeLimit" type="number" v-model.number="timeLimit" placeholder="미입력 시 무제한" min="1" />
+            <p class="text-xs text-muted-foreground">미입력 시 시간 제한 없음</p>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -205,6 +212,7 @@ const isEditMode = computed(() => !!route.params.id)
 const editId = computed(() => route.params.id)
 
 const title = ref('')
+const timeLimit = ref(null)
 const problemInputs = ref([makeProblem(1)])
 const submitting = ref(false)
 const submitError = ref('')
@@ -229,6 +237,7 @@ onMounted(async () => {
     try {
       const { data } = await fetchExam(sourceId)
       title.value = data.title
+      timeLimit.value = data.timeLimit || null
       problemInputs.value = data.problems.map(p => ({
         id: crypto.randomUUID(),
         problemNumber: p.problemNumber,
@@ -301,6 +310,7 @@ async function handleSubmit() {
   submitError.value = ''
   const payload = {
     title: title.value.trim(),
+    timeLimit: timeLimit.value && timeLimit.value > 0 ? timeLimit.value : null,
     problems: problemInputs.value.map(p => ({
       problemNumber: p.problemNumber,
       content: p.content.trim(),
