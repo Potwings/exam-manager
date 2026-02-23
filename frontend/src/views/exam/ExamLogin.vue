@@ -6,29 +6,32 @@
         <CardDescription>정보를 입력하고 시험을 시작하세요.</CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div class="space-y-2">
-          <Label for="name">이름</Label>
-          <Input
-            id="name"
-            v-model="name"
-            placeholder="홍길동"
-            @blur="nameTouched = true"
-            :class="{ 'border-destructive': nameTouched && nameError }"
-          />
-          <p v-if="nameTouched && nameError" class="text-sm text-destructive">{{ nameError }}</p>
-        </div>
-        <div class="space-y-2">
-          <Label for="birthDate">생년월일</Label>
-          <Input
-            id="birthDate"
-            v-model="birthDate"
-            placeholder="ex) 20010101"
-            maxlength="8"
-            @blur="birthDateTouched = true"
-            :class="{ 'border-destructive': birthDateTouched && birthDateError }"
-          />
-          <p v-if="birthDateTouched && birthDateError" class="text-sm text-destructive">{{ birthDateError }}</p>
-        </div>
+        <form autocomplete="off" class="space-y-4" @submit.prevent="handleLogin">
+          <div class="space-y-2">
+            <Label for="name">이름</Label>
+            <Input
+              id="name"
+              v-model="name"
+              placeholder="홍길동"
+              @blur="nameTouched = true"
+              :class="{ 'border-destructive': nameTouched && nameError }"
+            />
+            <p v-if="nameTouched && nameError" class="text-sm text-destructive">{{ nameError }}</p>
+          </div>
+          <div class="space-y-2">
+            <Label for="birthDate">생년월일</Label>
+            <Input
+              id="birthDate"
+              v-model="birthDate"
+              placeholder="ex) 20010101"
+              maxlength="8"
+              @blur="birthDateTouched = true"
+              :class="{ 'border-destructive': birthDateTouched && birthDateError }"
+            />
+            <p v-if="birthDateTouched && birthDateError" class="text-sm text-destructive">{{ birthDateError }}</p>
+          </div>
+          <button type="submit" class="sr-only" tabindex="-1" />
+        </form>
         <div v-if="examStore.activeExam" class="p-3 bg-muted rounded-md text-sm">
           <span class="text-muted-foreground">시험: </span>
           <span class="font-medium">{{ examStore.activeExam.title }}</span>
@@ -39,7 +42,12 @@
         </p>
       </CardContent>
       <CardFooter>
-        <Button class="w-full" @click="handleLogin" :disabled="loginLoading || !examStore.activeExam || !canSubmit">
+        <Button
+          class="w-full"
+          :class="{ 'opacity-50': !examStore.activeExam || !canSubmit }"
+          :aria-disabled="loginLoading || !examStore.activeExam || !canSubmit"
+          @click="handleLogin"
+        >
           {{ loginLoading ? '로그인 중...' : '시험 시작' }}
         </Button>
       </CardFooter>
