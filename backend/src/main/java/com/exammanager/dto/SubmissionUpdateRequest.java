@@ -11,4 +11,6 @@ public class SubmissionUpdateRequest {
     private Integer earnedScore;
 
     private String feedback;
+
+    private String annotatedAnswer;
 }

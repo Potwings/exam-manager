@@ -99,6 +99,9 @@ public class SubmissionService {
 
         submission.setEarnedScore(request.getEarnedScore());
         submission.setFeedback(request.getFeedback());
+        if (request.getAnnotatedAnswer() != null) {
+            submission.setAnnotatedAnswer(request.getAnnotatedAnswer());
+        }
         return submissionRepository.save(submission);
     }
 
@@ -169,6 +172,9 @@ public class SubmissionService {
                         .earnedScore(s.getEarnedScore())
                         .maxScore(s.getProblem().getAnswer() != null ? s.getProblem().getAnswer().getScore() : 0)
                         .feedback(s.getFeedback())
+                        .annotatedAnswer(s.getAnnotatedAnswer())
+                        .problemContent(s.getProblem().getContent())
+                        .problemContentType(s.getProblem().getContentType())
                         .build())
                 .sorted(Comparator.comparingInt(SubmissionResultResponse.SubmissionDetail::getProblemNumber))
                 .toList();
