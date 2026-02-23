@@ -8,11 +8,26 @@
       <CardContent class="space-y-4">
         <div class="space-y-2">
           <Label for="name">이름</Label>
-          <Input id="name" v-model="name" placeholder="홍길동" />
+          <Input
+            id="name"
+            v-model="name"
+            placeholder="홍길동"
+            @blur="nameTouched = true"
+            :class="{ 'border-destructive': nameTouched && nameError }"
+          />
+          <p v-if="nameTouched && nameError" class="text-sm text-destructive">{{ nameError }}</p>
         </div>
         <div class="space-y-2">
           <Label for="birthDate">생년월일</Label>
-          <Input id="birthDate" v-model="birthDate" placeholder="ex) 20010101" maxlength="8" />
+          <Input
+            id="birthDate"
+            v-model="birthDate"
+            placeholder="ex) 20010101"
+            maxlength="8"
+            @blur="birthDateTouched = true"
+            :class="{ 'border-destructive': birthDateTouched && birthDateError }"
+          />
+          <p v-if="birthDateTouched && birthDateError" class="text-sm text-destructive">{{ birthDateError }}</p>
         </div>
         <div v-if="examStore.activeExam" class="p-3 bg-muted rounded-md text-sm">
           <span class="text-muted-foreground">시험: </span>
@@ -24,7 +39,7 @@
         </p>
       </CardContent>
       <CardFooter>
-        <Button class="w-full" @click="handleLogin" :disabled="loginLoading || !examStore.activeExam || !name.trim() || !/^\d{8}$/.test(birthDate)">
+        <Button class="w-full" @click="handleLogin" :disabled="loginLoading || !examStore.activeExam || !canSubmit">
           {{ loginLoading ? '로그인 중...' : '시험 시작' }}
         </Button>
       </CardFooter>
@@ -33,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useExamStore } from '@/stores/examStore'
@@ -50,6 +65,31 @@ const name = ref('')
 const birthDate = ref('')
 const loading = ref(true)
 const loginLoading = ref(false)
+const nameTouched = ref(false)
+const birthDateTouched = ref(false)
+
+// 8자리 숫자가 실제 유효한 날짜(윤년/월별 일수 포함)인지 검증
+function isValidDate(dateStr) {
+  if (!/^\d{8}$/.test(dateStr)) return false
+  const y = parseInt(dateStr.slice(0, 4), 10)
+  const m = parseInt(dateStr.slice(4, 6), 10)
+  const d = parseInt(dateStr.slice(6, 8), 10)
+  const date = new Date(y, m - 1, d)
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+}
+
+const nameError = computed(() => {
+  if (!name.value.trim()) return '이름을 입력해주세요'
+  return ''
+})
+
+const birthDateError = computed(() => {
+  if (!birthDate.value || birthDate.value.length < 8) return '생년월일 8자리를 입력해주세요 (예: 20010101)'
+  if (!isValidDate(birthDate.value)) return '올바른 날짜 형식이 아닙니다'
+  return ''
+})
+
+const canSubmit = computed(() => !nameError.value && !birthDateError.value)
 
 onMounted(async () => {
   await examStore.loadActiveExam()
@@ -57,10 +97,13 @@ onMounted(async () => {
 })
 
 async function handleLogin() {
-  if (!name.value.trim() || !/^\d{8}$/.test(birthDate.value) || !examStore.activeExam) return
+  // 제출 시도 시 모든 필드를 touched 처리하여 에러 메시지 노출
+  nameTouched.value = true
+  birthDateTouched.value = true
+  if (!canSubmit.value || !examStore.activeExam) return
+
   loginLoading.value = true
   try {
-    // 19950719 → 1995-07-19 형태로 변환 (백엔드 LocalDate가 yyyy-MM-dd를 기대)
     const raw = birthDate.value
     const formatted = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`
     await authStore.login(name.value, formatted)
