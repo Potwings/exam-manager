@@ -48,7 +48,7 @@
         <Button
           class="w-full"
           :class="{ 'opacity-50': !examStore.activeExam || !canSubmit }"
-          :aria-disabled="loginLoading || !examStore.activeExam || !canSubmit"
+          :disabled="loginLoading || !examStore.activeExam || !canSubmit"
           @click="handleLogin"
         >
           {{ loginLoading ? '로그인 중...' : '시험 시작' }}
@@ -108,6 +108,7 @@ onMounted(async () => {
 })
 
 async function handleLogin() {
+  if (loginLoading.value) return
   // 제출 시도 시 모든 필드를 touched 처리하여 에러 메시지 노출
   nameTouched.value = true
   birthDateTouched.value = true

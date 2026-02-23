@@ -18,6 +18,24 @@
       </div>
     </template>
 
+    <!-- 세션 생성 실패: 시험 차단 + 재시도 -->
+    <template v-else-if="sessionError">
+      <div class="flex items-center justify-center min-h-[40vh]">
+        <Card class="w-full max-w-md text-center">
+          <CardHeader>
+            <CardTitle class="text-2xl">세션 오류</CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <p class="text-muted-foreground">시험 세션을 생성하지 못했습니다. 네트워크 연결을 확인해주세요.</p>
+          </CardContent>
+          <CardFooter class="justify-center gap-2">
+            <Button variant="outline" @click="router.push('/exam/login')">돌아가기</Button>
+            <Button @click="retrySession">재시도</Button>
+          </CardFooter>
+        </Card>
+      </div>
+    </template>
+
     <!-- 시험 응시 상태 -->
     <template v-else>
       <!-- 헤더: 시험 제목 + 타이머 (sticky로 스크롤 시 상단 고정) -->
@@ -134,6 +152,7 @@ const languages = reactive({})
 const loading = ref(false)
 const submitted = ref(false)
 const timeExpired = ref(false)
+const sessionError = ref(false)
 
 // 타이머 관련 상태
 const remainingSeconds = ref(null)
@@ -192,7 +211,7 @@ const progressPercent = computed(() => {
 
 function startTimer(seconds) {
   remainingSeconds.value = seconds
-  if (totalSeconds.value === null) totalSeconds.value = seconds
+  if (totalSeconds.value === null) totalSeconds.value = examStore.currentExam.timeLimit * 60
   timerId = setInterval(() => {
     if (remainingSeconds.value <= 0) {
       stopTimer()
@@ -286,9 +305,29 @@ onMounted(async () => {
       }
     } catch (e) {
       console.error('세션 생성 실패:', e)
+      sessionError.value = true
     }
   }
 })
+
+async function retrySession() {
+  sessionError.value = false
+  try {
+    const examId = route.params.examId
+    const { data } = await createExamSession(authStore.examinee.id, examId)
+    if (data.remainingSeconds !== null && data.remainingSeconds !== undefined) {
+      if (data.remainingSeconds <= 0) {
+        timeExpired.value = true
+        handleSubmit()
+      } else {
+        startTimer(data.remainingSeconds)
+      }
+    }
+  } catch (e) {
+    console.error('세션 재시도 실패:', e)
+    sessionError.value = true
+  }
+}
 
 // answers 변경 시 localStorage에 자동 저장 (새로고침 대응)
 watch(answers, (val) => {
@@ -347,12 +386,16 @@ async function handleSubmit() {
       alert('이미 응시 완료한 시험입니다.')
       router.push('/exam/login')
     } else if (e.response?.status === 403) {
-      // 서버 측에서 시간 초과 판정
+      // 서버 측에서 시간 초과 판정 — 세션 데이터 정리
+      localStorage.removeItem(`exam_${route.params.examId}_answers`)
+      authStore.clear()
       timeExpired.value = true
       submitted.value = true
     } else {
       // 시간 만료로 인한 자동 제출 실패 시에도 완료 처리 (사용자 혼란 방지)
       if (timeExpired.value) {
+        localStorage.removeItem(`exam_${route.params.examId}_answers`)
+        authStore.clear()
         submitted.value = true
       } else {
         alert('제출 실패: ' + (e.response?.data?.message || e.message))

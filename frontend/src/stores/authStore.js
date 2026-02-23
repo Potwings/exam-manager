@@ -5,7 +5,15 @@ import { loginExaminee, adminLogin, adminLogout, adminMe } from '@/api'
 export const useAuthStore = defineStore('auth', () => {
   // localStorage에서 수험자 인증 정보 복원 (새로고침 대응)
   const saved = localStorage.getItem('examinee')
-  const examinee = ref(saved ? JSON.parse(saved) : null)
+  let parsedExaminee = null
+  if (saved) {
+    try {
+      parsedExaminee = JSON.parse(saved)
+    } catch {
+      localStorage.removeItem('examinee')
+    }
+  }
+  const examinee = ref(parsedExaminee)
   const admin = ref(null)
   const adminLoading = ref(true)
 

@@ -11,12 +11,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -26,7 +24,8 @@ public class ExamService {
     private final ExamRepository examRepository;
     private final ProblemRepository problemRepository;
     private final SubmissionRepository submissionRepository;
-    private final DocxParserService docxParserService;
+    // docx 업로드 기능 제거 예정 — 비활성화
+    // private final DocxParserService docxParserService;
 
     @Transactional
     public Exam createExam(ExamCreateRequest request) {
@@ -57,46 +56,46 @@ public class ExamService {
         return examRepository.save(exam);
     }
 
-    @Transactional
-    public Exam createExamFromDocx(String title, MultipartFile problemFile, MultipartFile answerFile) {
-        List<Map<String, String>> parsedProblems = docxParserService.parseProblems(problemFile);
-        List<Map<String, String>> parsedAnswers = docxParserService.parseAnswers(answerFile);
-
-        Exam exam = Exam.builder()
-                .title(title)
-                .problemFileName(problemFile.getOriginalFilename())
-                .answerFileName(answerFile.getOriginalFilename())
-                .build();
-
-        for (Map<String, String> pp : parsedProblems) {
-            int num = Integer.parseInt(pp.get("number"));
-            String content = pp.get("content");
-
-            Problem problem = Problem.builder()
-                    .problemNumber(num)
-                    .content(content)
-                    .contentType("TEXT")
-                    .exam(exam)
-                    .build();
-
-            // 문제번호로 매칭되는 답안 찾기
-            parsedAnswers.stream()
-                    .filter(a -> Integer.parseInt(a.get("number")) == num)
-                    .findFirst()
-                    .ifPresent(pa -> {
-                        Answer answer = Answer.builder()
-                                .content(pa.get("content"))
-                                .score(Integer.parseInt(pa.get("score")))
-                                .problem(problem)
-                                .build();
-                        problem.setAnswer(answer);
-                    });
-
-            exam.getProblems().add(problem);
-        }
-
-        return examRepository.save(exam);
-    }
+    // docx 업로드 기능 제거 예정 — 비활성화
+    // @Transactional
+    // public Exam createExamFromDocx(String title, MultipartFile problemFile, MultipartFile answerFile) {
+    //     List<Map<String, String>> parsedProblems = docxParserService.parseProblems(problemFile);
+    //     List<Map<String, String>> parsedAnswers = docxParserService.parseAnswers(answerFile);
+    //
+    //     Exam exam = Exam.builder()
+    //             .title(title)
+    //             .problemFileName(problemFile.getOriginalFilename())
+    //             .answerFileName(answerFile.getOriginalFilename())
+    //             .build();
+    //
+    //     for (Map<String, String> pp : parsedProblems) {
+    //         int num = Integer.parseInt(pp.get("number"));
+    //         String content = pp.get("content");
+    //
+    //         Problem problem = Problem.builder()
+    //                 .problemNumber(num)
+    //                 .content(content)
+    //                 .contentType("TEXT")
+    //                 .exam(exam)
+    //                 .build();
+    //
+    //         parsedAnswers.stream()
+    //                 .filter(a -> Integer.parseInt(a.get("number")) == num)
+    //                 .findFirst()
+    //                 .ifPresent(pa -> {
+    //                     Answer answer = Answer.builder()
+    //                             .content(pa.get("content"))
+    //                             .score(Integer.parseInt(pa.get("score")))
+    //                             .problem(problem)
+    //                             .build();
+    //                     problem.setAnswer(answer);
+    //                 });
+    //
+    //         exam.getProblems().add(problem);
+    //     }
+    //
+    //     return examRepository.save(exam);
+    // }
 
     public List<Exam> findAll() {
         return examRepository.findByDeletedFalse();

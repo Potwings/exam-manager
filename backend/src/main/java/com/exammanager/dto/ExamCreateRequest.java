@@ -1,11 +1,13 @@
 package com.exammanager.dto;
 
+import jakarta.validation.constraints.Min;
 import lombok.*;
 import java.util.List;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class ExamCreateRequest {
     private String title;
+    @Min(1)
     private Integer timeLimit;
     private List<ProblemInput> problems;
 

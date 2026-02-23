@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.validation.Valid;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -27,7 +28,7 @@ public class ExamSessionController {
     private final ExamService examService;
 
     @PostMapping
-    public ExamSessionResponse createSession(@RequestBody ExamSessionRequest request) {
+    public ExamSessionResponse createSession(@Valid @RequestBody ExamSessionRequest request) {
         Exam exam = examService.findById(request.getExamId());
 
         // timeLimit 없으면 세션 미생성, 시간 제한 없음 응답

@@ -51,19 +51,18 @@ public class SubmissionService {
 
         // 시간 제한 검증: timeLimit이 설정된 시험은 시간 초과 여부 확인 (1분 여유시간 부여)
         if (exam.getTimeLimit() != null) {
-            examSessionRepository.findByExamineeIdAndExamId(request.getExamineeId(), request.getExamId())
-                    .ifPresent(session -> {
-                        LocalDateTime deadline = session.getStartedAt()
-                                .plusMinutes(exam.getTimeLimit())
-                                .plusMinutes(1);
-                        if (LocalDateTime.now().isAfter(deadline)) {
-                            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "시험 시간이 종료되었습니다");
-                        }
-                    });
+            ExamSession session = examSessionRepository.findByExamineeIdAndExamId(request.getExamineeId(), request.getExamId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "시험 시간이 종료되었습니다"));
+            LocalDateTime deadline = session.getStartedAt()
+                    .plusMinutes(exam.getTimeLimit())
+                    .plusMinutes(1);
+            if (LocalDateTime.now().isAfter(deadline)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "시험 시간이 종료되었습니다");
+            }
         }
 
         Examinee examinee = examineeRepository.findById(request.getExamineeId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + request.getExamineeId()));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다"));
 
         List<Problem> problems = problemRepository.findByExamIdOrderByProblemNumber(request.getExamId());
         Map<Long, Problem> problemMap = problems.stream()
@@ -126,7 +125,7 @@ public class SubmissionService {
         examService.findById(examId);
 
         Examinee examinee = examineeRepository.findById(examineeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + examineeId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다"));
 
         List<Problem> problems = problemRepository.findByExamIdOrderByProblemNumber(examId);
         List<Submission> submissions = submissionRepository.findByExamineeIdAndProblemExamId(examineeId, examId);
