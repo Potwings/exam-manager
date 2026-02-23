@@ -40,8 +40,24 @@ public class GradingService {
             - 핵심 개념을 설명하고 있으면 표현이 달라도 점수를 부여하세요.
             - 핵심 개념 자체가 빠져있으면 해당 점수를 부여하지 마세요.
 
+            annotatedAnswer 작성 규칙:
+            - 수험자 답안의 원문을 최대한 유지하면서 태그로 감싸세요.
+            - 태그 종류: [정답]...[/정답], [오답]...[/오답], [부분]...[/부분]
+            - [정답]: 채점 기준에 부합하는 정확한 내용
+            - [오답]: 잘못되거나 부정확한 내용
+            - [부분]: 방향은 맞지만 설명이 부족하거나 애매한 내용
+            - 중요: 모든 여는 태그에는 반드시 닫는 태그를 쌍으로 작성하세요. [정답]으로 열었으면 반드시 [/정답]으로 닫아야 합니다.
+            - 답안 전체가 하나의 카테고리면 전체를 하나의 태그로 감싸세요.
+            - 태그 사이의 공백이나 줄바꿈은 그대로 유지하세요.
+
+            annotatedAnswer 올바른 예시:
+            "[정답]캡슐화는 데이터를 보호하는 것이다.[/정답] [오답]다형성은 변수를 여러 개 쓰는 것이다.[/오답] [부분]상속은 물려받는 것이다.[/부분]"
+
+            annotatedAnswer 잘못된 예시 (닫는 태그 누락 — 절대 이렇게 작성하지 마세요):
+            "[정답]캡슐화는 데이터를 보호하는 것이다. [오답]다형성은 변수를 여러 개 쓰는 것이다."
+
             반드시 아래 JSON 형식으로만 응답하세요:
-            {"earnedScore": <0 이상 배점 이하의 정수>, "feedback": "<채점 근거를 간결하게 설명>"}
+            {"earnedScore": 3, "annotatedAnswer": "[정답]정확한 부분[/정답] [오답]틀린 부분[/오답]", "feedback": "채점 근거"}
             """;
 
     public void grade(Submission submission, Answer answer) {
@@ -131,10 +147,12 @@ public class GradingService {
             int earnedScore = result.get("earnedScore").asInt();
             earnedScore = Math.max(0, Math.min(earnedScore, maxScore));
             String feedback = result.has("feedback") ? result.get("feedback").asText() : "";
+            String annotated = result.has("annotatedAnswer") ? result.get("annotatedAnswer").asText() : null;
 
             submission.setEarnedScore(earnedScore);
             submission.setIsCorrect(earnedScore == maxScore);
             submission.setFeedback(feedback);
+            submission.setAnnotatedAnswer(annotated);
 
             int problemNumber = submission.getProblem() != null ? submission.getProblem().getProblemNumber() : 0;
             log.info("LLM grading - Problem {}: {}/{} - {}",
@@ -152,5 +170,8 @@ public class GradingService {
         submission.setIsCorrect(correct);
         submission.setEarnedScore(correct ? answer.getScore() : 0);
         submission.setFeedback(correct ? "정답" : "오답 (단순 비교 채점)");
+        submission.setAnnotatedAnswer(correct
+                ? "[정답]" + submittedAnswer + "[/정답]"
+                : "[오답]" + submittedAnswer + "[/오답]");
     }
 }
