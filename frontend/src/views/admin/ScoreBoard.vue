@@ -43,7 +43,10 @@
               <TableCell class="font-medium">{{ r.examineeName }}</TableCell>
               <TableCell class="text-muted-foreground">{{ r.examineeBirthDate || '-' }}</TableCell>
               <TableCell>
-                <Badge :variant="r.totalScore >= r.maxScore * 0.6 ? 'default' : 'destructive'">
+                <Badge v-if="!r.gradingComplete" variant="outline" class="text-amber-600 border-amber-300">
+                  <Loader2 class="h-3 w-3 animate-spin mr-1" /> 채점 중
+                </Badge>
+                <Badge v-else :variant="r.totalScore >= r.maxScore * 0.6 ? 'default' : 'destructive'">
                   {{ r.totalScore }} / {{ r.maxScore }}
                 </Badge>
               </TableCell>
@@ -63,12 +66,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useExamStore } from '@/stores/examStore'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Loader2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const examStore = useExamStore()
@@ -84,13 +88,37 @@ onMounted(async () => {
   }
 })
 
+let pollingTimer = null
+
 async function loadResults() {
+  stopPolling()
   if (!selectedExamId.value) {
     results.value = []
     return
   }
   results.value = await examStore.loadScores(selectedExamId.value)
+  startPollingIfNeeded()
 }
+
+function startPollingIfNeeded() {
+  const hasGrading = results.value.some(r => !r.gradingComplete)
+  if (hasGrading && !pollingTimer) {
+    pollingTimer = setInterval(async () => {
+      results.value = await examStore.loadScores(selectedExamId.value)
+      const stillGrading = results.value.some(r => !r.gradingComplete)
+      if (!stillGrading) stopPolling()
+    }, 5000)
+  }
+}
+
+function stopPolling() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+    pollingTimer = null
+  }
+}
+
+onUnmounted(() => stopPolling())
 
 function goToDetail(row) {
   router.push(`/admin/scores/${selectedExamId.value}/${row.examineeId}`)

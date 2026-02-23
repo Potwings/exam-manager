@@ -110,18 +110,27 @@ application-local.yml    — DB 자격증명 (gitignored, **/application-local.y
 
 ## LLM 채점 시스템
 
-### 아키텍처
+### 아키텍처 (비동기 채점)
 ```
-SubmissionService.submitAnswers()
+SubmissionService.submitAnswers()  ← @Transactional
   → 재시험 방지: existsByExamineeIdAndProblemExamId() → 이미 있으면 409 CONFLICT
   → 중복 problemId 제거 (마지막 항목 유지)
   → 기존 제출 조회 (findByExamineeIdAndProblemId) → 있으면 업데이트, 없으면 새로 생성
-  → GradingService.grade()
-    → null 방어: answer null → 0점, maxScore ≤ 0 → 스킵, 빈 답안 → 0점
-    → OllamaClient.isAvailable() 확인
-    → gradeWithLlm(): 프롬프트 조립 → Ollama /api/chat 호출 → JSON 파싱
-    → 실패 시 gradeFallback(): equalsIgnoreCase 단순 비교
+  → 답안만 저장 (earnedScore/feedback/isCorrect = null 상태)
+  → 즉시 응답 반환 (void)
+  → TransactionSynchronization.afterCommit()
+    → GradingService.gradeSubmissionsAsync()  ← @Async @Transactional (별도 스레드)
+      → 해당 수험자의 미채점 submission 일괄 조회
+      → 개별 submission마다:
+        → GradingService.grade()
+          → null 방어: answer null → 0점, maxScore ≤ 0 → 스킵, 빈 답안 → 0점
+          → OllamaClient.isAvailable() 확인
+          → gradeWithLlm(): 프롬프트 조립 → Ollama /api/chat 호출 → JSON 파싱
+          → 실패 시 gradeFallback(): equalsIgnoreCase 단순 비교
 ```
+- `@EnableAsync`로 Spring 비동기 실행 인프라 활성화 (`ExamManagerApplication.java`)
+- `@Async`는 같은 클래스 내부 호출 시 AOP 프록시를 우회하므로, 반드시 다른 빈에서 호출해야 함 (SubmissionService → GradingService)
+- `TransactionSynchronization.afterCommit()`: 트랜잭션 커밋 후 비동기 채점 트리거 (커밋 전 호출 시 비동기 스레드에서 저장 안 된 데이터 조회 불가)
 
 ### 설정 (`application.yml`)
 ```yaml
@@ -223,7 +232,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | DELETE | `/api/admin/{id}` | AdminController | 관리자 삭제 (자기 자신 불가) — **Admin** |
 | PATCH | `/api/admin/change-password` | AdminController | 비밀번호 변경 + initLogin 해제 — **Admin** |
 | POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 이름+생년월일 find-or-create — **Public** |
-| POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (재시험 방지, 간소 응답) — **Public** |
+| POST | `/api/submissions` | SubmissionController | 답안 제출 (즉시 저장 + 비동기 LLM 채점, 재시험 방지) — **Public** |
 | GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 — **Admin** |
 | PATCH | `/api/submissions/{id}` | SubmissionController | 채점 결과 수정 (득점/피드백) — **Admin** |
 | GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 — **Admin** |
@@ -249,7 +258,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
 | SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback) |
 | SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**}]) |
-| ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, submittedAt) |
+| ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, **gradingComplete**, submittedAt) |
 
 ## Routes (Frontend)
 
@@ -340,9 +349,16 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - `App.vue` — Manage, Scores, Members 링크는 `authStore.admin && !initLogin` 일 때만 표시. 미로그인 시 "관리자 로그인" 링크 표시
 
 ### 답안 제출 결과 관리자 전용화
-- `POST /api/submissions` — 채점은 백엔드에서 수행하되, 응답은 성공 메시지만 반환 (점수/피드백 미포함)
-- `ExamTake.vue` — 제출 후 "제출 완료" Card 표시 (결과 페이지 이동 제거)
+- `POST /api/submissions` — 답안 즉시 저장 후 성공 메시지만 반환, 채점은 `@Async`로 백그라운드 실행
+- `ExamTake.vue` — 제출 후 "제출 완료" Card 표시 (결과 페이지 이동 제거), 타임아웃 30초
 - `GET /api/submissions/result` — 관리자 인증 필수 (채점 결과 조회)
+
+### 채점 중 상태 표시 + 자동 폴링
+- 비동기 채점 미완료 시 `earnedScore = null` → "채점 중" Badge (amber 색상 + 스피너) 표시
+- `ScoreSummaryResponse.gradingComplete` — 전체 submission의 `earnedScore != null` 여부
+- `ScoreBoard.vue` — 목록에서 "채점 중" Badge 표시, 5초 간격 폴링으로 자동 반영
+- `ScoreDetail.vue` — 문제별 "채점 중" Badge + "채점이 완료되면 피드백이 표시됩니다" 안내, 5초 간격 폴링
+- 폴링은 채점 중 항목이 있을 때만 시작, 모두 완료되면 자동 중단 (`onUnmounted`에서 cleanup)
 
 ## AI 출제 도우미
 
@@ -358,6 +374,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### Phase 3 — 고도화
 - [x] 관리자 인증/권한 분리
 - [x] 관리자 계정 관리 (등록/목록/삭제 + 최초 로그인 비밀번호 변경)
+- [x] 답안 제출 비동기 채점 전환 (@Async + afterCommit + 채점 중 UI + 자동 폴링)
 - [ ] 서비스/컨트롤러 단위 테스트 추가
 - [x] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인) — ScoreDetail.vue 별도 페이지
 - [x] 채점 결과 첨삭 기능 (관리자가 득점/피드백 인라인 수정) — PATCH /api/submissions/{id}

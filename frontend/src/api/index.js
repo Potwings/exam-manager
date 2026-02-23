@@ -97,7 +97,7 @@ export function loginExaminee(name, birthDate) {
 // ===== Submission =====
 
 export function submitAnswers(examineeId, examId, answers) {
-  return api.post('/submissions', { examineeId, examId, answers }, { timeout: 300000 })
+  return api.post('/submissions', { examineeId, examId, answers }, { timeout: 30000 })
 }
 
 export function fetchResult(examineeId, examId) {

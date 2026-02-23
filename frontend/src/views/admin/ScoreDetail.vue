@@ -33,8 +33,11 @@
           <div class="flex items-center justify-between">
             <CardTitle class="text-base">문제 {{ s.problemNumber }}</CardTitle>
             <div class="flex items-center gap-2">
-              <Badge :variant="s.earnedScore >= s.maxScore ? 'default' : s.earnedScore > 0 ? 'secondary' : 'destructive'">
-                {{ s.earnedScore ?? 0 }} / {{ s.maxScore }}점
+              <Badge v-if="s.earnedScore == null" variant="outline" class="text-amber-600 border-amber-300">
+                <Loader2 class="h-3 w-3 animate-spin mr-1" /> 채점 중
+              </Badge>
+              <Badge v-else :variant="s.earnedScore >= s.maxScore ? 'default' : s.earnedScore > 0 ? 'secondary' : 'destructive'">
+                {{ s.earnedScore }} / {{ s.maxScore }}점
               </Badge>
               <Button
                 v-if="editingId !== s.id"
@@ -58,7 +61,10 @@
           <template v-if="editingId !== s.id">
             <div>
               <p class="text-sm font-medium text-muted-foreground mb-1">채점 사유</p>
-              <p class="text-sm leading-relaxed">{{ s.feedback || '(피드백 없음)' }}</p>
+              <p v-if="s.earnedScore == null" class="text-sm text-amber-600 flex items-center gap-1">
+                <Loader2 class="h-3 w-3 animate-spin" /> 채점이 완료되면 피드백이 표시됩니다.
+              </p>
+              <p v-else class="text-sm leading-relaxed">{{ s.feedback || '(피드백 없음)' }}</p>
             </div>
           </template>
 
@@ -100,7 +106,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { fetchResult, updateSubmission } from '@/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -127,17 +133,43 @@ const editForm = reactive({ earnedScore: 0, feedback: '' })
 const saving = ref(false)
 const editError = ref('')
 
+let pollingTimer = null
+
 onMounted(async () => {
   try {
     const { data } = await fetchResult(examineeId, examId)
     result.value = data
     examineeName.value = data.examineeName || '수험자'
+    startPollingIfNeeded()
   } catch (e) {
     loadError.value = '채점 결과를 불러올 수 없습니다.'
   } finally {
     loading.value = false
   }
 })
+
+function startPollingIfNeeded() {
+  const hasGrading = result.value?.submissions?.some(s => s.earnedScore == null)
+  if (hasGrading && !pollingTimer) {
+    pollingTimer = setInterval(async () => {
+      try {
+        const { data } = await fetchResult(examineeId, examId)
+        result.value = data
+        const stillGrading = data.submissions?.some(s => s.earnedScore == null)
+        if (!stillGrading) stopPolling()
+      } catch (_) { /* 무시 */ }
+    }, 5000)
+  }
+}
+
+function stopPolling() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+    pollingTimer = null
+  }
+}
+
+onUnmounted(() => stopPolling())
 
 function startEdit(s) {
   editingId.value = s.id

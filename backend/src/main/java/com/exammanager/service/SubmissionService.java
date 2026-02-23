@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
@@ -36,7 +38,7 @@ public class SubmissionService {
     }
 
     @Transactional
-    public SubmissionResultResponse submitAnswers(SubmissionRequest request) {
+    public void submitAnswers(SubmissionRequest request) {
         examService.findById(request.getExamId());
 
         // 재시험 방지: 이미 해당 시험에 제출한 기록이 있으면 409 반환
@@ -71,19 +73,21 @@ public class SubmissionService {
                             .problem(problem)
                             .build());
 
+            // 답안만 저장 (채점은 비동기로 별도 처리)
             submission.setSubmittedAnswer(item.getAnswer());
-
-            if (problem.getAnswer() != null) {
-                gradingService.grade(submission, problem.getAnswer());
-            }
-
             submissionRepository.save(submission);
         }
 
-        List<Submission> allSubmissions = submissionRepository
-                .findByExamineeIdAndProblemExamId(examinee.getId(), request.getExamId());
-
-        return buildResult(examinee, request.getExamId(), problems, allSubmissions);
+        // 트랜잭션 커밋이 완료된 후에 비동기 채점을 트리거
+        // (커밋 전에 호출하면 비동기 스레드에서 아직 저장 안 된 데이터를 조회할 수 없음)
+        Long examineeId = examinee.getId();
+        Long examId = request.getExamId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                gradingService.gradeSubmissionsAsync(examineeId, examId);
+            }
+        });
     }
 
     @Transactional
@@ -132,12 +136,14 @@ public class SubmissionService {
                     List<Submission> subs = entry.getValue();
                     Examinee ex = subs.get(0).getExaminee();
                     int total = subs.stream().mapToInt(s -> s.getEarnedScore() != null ? s.getEarnedScore() : 0).sum();
+                    boolean allGraded = subs.stream().allMatch(s -> s.getEarnedScore() != null);
                     return ScoreSummaryResponse.builder()
                             .examineeId(ex.getId())
                             .examineeName(ex.getName())
                             .examineeBirthDate(ex.getBirthDate())
                             .totalScore(total)
                             .maxScore(maxScore)
+                            .gradingComplete(allGraded)
                             .submittedAt(subs.stream()
                                     .map(Submission::getSubmittedAt)
                                     .filter(Objects::nonNull)
