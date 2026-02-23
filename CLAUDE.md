@@ -33,10 +33,10 @@ exam-scorer/
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/exammanager/
 │       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, AdminInitializer, InitLoginFilter
-│       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController
+│       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController, ExamSessionController
 │       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService, AdminUserDetailsService
-│       ├── repository/      # JPA Repositories (5개)
-│       ├── entity/          # Admin, Exam, Problem, Answer, Examinee, Submission
+│       ├── repository/      # JPA Repositories (6개)
+│       ├── entity/          # Admin, Exam, Problem, Answer, Examinee, Submission, ExamSession
 │       └── dto/             # 요청/응답 DTO
 │   └── src/main/resources/
 │       └── data/            # seed.sql (초기 시드 데이터, 수동 실행용)
@@ -110,18 +110,27 @@ application-local.yml    — DB 자격증명 (gitignored, **/application-local.y
 
 ## LLM 채점 시스템
 
-### 아키텍처
+### 아키텍처 (비동기 채점)
 ```
-SubmissionService.submitAnswers()
+SubmissionService.submitAnswers()  ← @Transactional
   → 재시험 방지: existsByExamineeIdAndProblemExamId() → 이미 있으면 409 CONFLICT
   → 중복 problemId 제거 (마지막 항목 유지)
   → 기존 제출 조회 (findByExamineeIdAndProblemId) → 있으면 업데이트, 없으면 새로 생성
-  → GradingService.grade()
-    → null 방어: answer null → 0점, maxScore ≤ 0 → 스킵, 빈 답안 → 0점
-    → OllamaClient.isAvailable() 확인
-    → gradeWithLlm(): 프롬프트 조립 → Ollama /api/chat 호출 → JSON 파싱
-    → 실패 시 gradeFallback(): equalsIgnoreCase 단순 비교
+  → 답안만 저장 (earnedScore/feedback/isCorrect = null 상태)
+  → 즉시 응답 반환 (void)
+  → TransactionSynchronization.afterCommit()
+    → GradingService.gradeSubmissionsAsync()  ← @Async @Transactional (별도 스레드)
+      → 해당 수험자의 미채점 submission 일괄 조회
+      → 개별 submission마다:
+        → GradingService.grade()
+          → null 방어: answer null → 0점, maxScore ≤ 0 → 스킵, 빈 답안 → 0점
+          → OllamaClient.isAvailable() 확인
+          → gradeWithLlm(): 프롬프트 조립 → Ollama /api/chat 호출 → JSON 파싱
+          → 실패 시 gradeFallback(): equalsIgnoreCase 단순 비교
 ```
+- `@EnableAsync`로 Spring 비동기 실행 인프라 활성화 (`ExamManagerApplication.java`)
+- `@Async`는 같은 클래스 내부 호출 시 AOP 프록시를 우회하므로, 반드시 다른 빈에서 호출해야 함 (SubmissionService → GradingService)
+- `TransactionSynchronization.afterCommit()`: 트랜잭션 커밋 후 비동기 채점 트리거 (커밋 전 호출 시 비동기 스레드에서 저장 안 된 데이터 조회 불가)
 
 ### 설정 (`application.yml`)
 ```yaml
@@ -191,16 +200,44 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - `DELETE /api/exams/{id}` → `deleted=true`, `active=false` 설정
 - DB 데이터 보존, 관리자 목록에서만 숨김 (`findByDeletedFalse()`)
 
+### 시험 시간 제한
+- `Exam.timeLimit` — nullable `Integer`, 분 단위 (null = 무제한)
+- 시험 생성/수정 시 관리자가 선택적으로 설정 (`ExamCreate.vue`)
+- 시험 목록에 Clock 아이콘 + `{N}분` 표시, 없으면 `-` (`ExamManage.vue`)
+- 수험자 로그인 시 `· 제한시간 {N}분` 조건부 표시 (`ExamLogin.vue`)
+
+#### ExamSession (서버 기반 시간 관리)
+- `ExamSession` 엔티티: `examinee` + `exam` + `startedAt` (서버 시간 기준)
+- `UNIQUE(examinee_id, exam_id)` — 동일 수험자의 중복 세션 방지
+- `POST /api/exam-sessions` — find-or-create 패턴 (DataIntegrityViolationException 처리)
+  - timeLimit 없으면 `{ remainingSeconds: null }` 반환 (세션 미생성)
+  - 있으면 `startedAt + timeLimit - now` 계산 → 남은 초 반환
+- 새로고침 시에도 서버 기준 시간이 이어짐 (클라이언트 조작 불가)
+
+#### 타이머 UI (`ExamTake.vue`)
+- **sticky 헤더**: 시험 제목 + 타이머 위젯이 `sticky top-0`으로 스크롤 시 상단 고정
+- **카운트다운**: `setInterval` 1초 간격, `MM:SS` monospace 포맷 (`tabular-nums`)
+- **색상 변화**: 평소 다크(slate-900) → 5분 이하 amber → 1분 이하 red + animate-pulse
+- **프로그레스 바**: 전체 시간 대비 남은 시간 비율, 색상 연동
+- **자동 제출**: 0초 도달 시 `handleSubmit()` 자동 호출 + "시간 종료" 메시지
+- **시간 제한 없는 시험**: 타이머 위젯 미표시 (`v-if="formattedTime !== null"`)
+
+#### 서버 측 시간 초과 검증 (`SubmissionService`)
+- timeLimit 있는 시험 제출 시 `startedAt + timeLimit + 1분(grace) < now` 검증
+- 초과 시 `403 FORBIDDEN` ("시험 시간이 종료되었습니다")
+- 1분 여유시간: 네트워크 지연 고려
+
 ## DB Schema (Entities)
 
 | Entity | Table | 설명 |
 |--------|-------|------|
 | Admin | admins | 관리자 (username:`UNIQUE`, password:`BCrypt`, role, **initLogin**) |
-| Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**) |
+| Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**, **timeLimit**) |
 | Problem | problems | 문제 (problemNumber, content, **contentType**) → Exam N:1 |
 | Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
 | Examinee | examinees | 시험자 (name, **birthDate**) |
 | Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**, **annotatedAnswer**) → Examinee, Problem N:1 |
+| ExamSession | exam_sessions | 시험 세션 (startedAt) → Examinee, Exam N:1. `UNIQUE(examinee_id, exam_id)` |
 
 ## API Endpoints
 
@@ -223,20 +260,22 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | DELETE | `/api/admin/{id}` | AdminController | 관리자 삭제 (자기 자신 불가) — **Admin** |
 | PATCH | `/api/admin/change-password` | AdminController | 비밀번호 변경 + initLogin 해제 — **Admin** |
 | POST | `/api/examinees/login` | ExamineeController | 시험자 로그인 — 이름+생년월일 find-or-create — **Public** |
-| POST | `/api/submissions` | SubmissionController | 답안 제출 + LLM 자동 채점 (재시험 방지, 간소 응답) — **Public** |
+| POST | `/api/submissions` | SubmissionController | 답안 제출 (즉시 저장 + 비동기 LLM 채점, 재시험 방지) — **Public** |
 | GET | `/api/submissions/result` | SubmissionController | 채점 결과 조회 — **Admin** |
 | PATCH | `/api/submissions/{id}` | SubmissionController | 채점 결과 수정 (득점/피드백/답안서식) — **Admin** |
 | GET | `/api/scores/exam/{examId}` | ScoreController | 시험별 점수 집계 — **Admin** |
 | GET | `/api/ai-assist/status` | AiAssistController | AI 출제 도우미 사용 가능 여부 확인 — **Admin** |
 | POST | `/api/ai-assist/generate` | AiAssistController | AI 문제/채점기준 자동 생성 — **Admin** |
+| POST | `/api/exam-sessions` | ExamSessionController | 시험 세션 생성/조회 (find-or-create, 남은 시간 반환) — **Public** |
+| GET | `/api/exam-sessions/remaining` | ExamSessionController | 남은 시간 조회 (새로고침용) — **Public** |
 
 ## DTO
 
 | 클래스 | 용도 |
 |--------|------|
-| ExamCreateRequest | 시험 생성/수정 요청 (title, problems[{problemNumber, content, **contentType**, answerContent, score}]) |
-| ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, createdAt) |
-| ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions** 포함) |
+| ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, answerContent, score}]) |
+| ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, **timeLimit**, createdAt) |
+| ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions**, **timeLimit** 포함) |
 | ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, answerContent?, score?) — 답안은 관리자용만 포함 |
 | AiAssistRequest | AI 출제 요청 (topic, difficulty 등) |
 | AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
@@ -249,7 +288,9 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
 | SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback, **annotatedAnswer**) |
 | SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**}]) |
-| ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, submittedAt) |
+| ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, **gradingComplete**, submittedAt) |
+| ExamSessionRequest | 시험 세션 생성 요청 (examineeId, examId) |
+| ExamSessionResponse | 시험 세션 응답 (remainingSeconds — null이면 시간 제한 없음) |
 
 ## Routes (Frontend)
 
@@ -312,7 +353,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### 엔드포인트 보호 규칙
 | 분류 | 경로 | 접근 |
 |------|------|------|
-| Public | `GET /api/exams/active`, `POST /api/examinees/**`, `POST /api/submissions` | permitAll |
+| Public | `GET /api/exams/active`, `POST /api/examinees/**`, `POST /api/submissions`, `/api/exam-sessions/**` | permitAll |
 | Public | `/api/admin/login`, `/api/admin/me` | permitAll |
 | Admin | `GET/POST/PUT/DELETE/PATCH /api/exams/**` (active 제외) | authenticated |
 | Admin | `GET/PATCH /api/submissions/**` (POST 제외), `/api/scores/**`, `/api/ai-assist/**` | authenticated |
@@ -330,8 +371,17 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### 프론트엔드 인증 상태 (authStore)
 - `admin` ref — 관리자 세션 정보, `adminLoading` ref — 세션 확인 완료 전 가드 방지
 - `checkAdmin()` — `GET /api/admin/me`로 세션 복원 (페이지 새로고침 대응)
+- `examinee` ref — localStorage 연동: 로그인 시 저장, 스토어 초기화 시 복원, `clear()` 시 삭제
 - axios `withCredentials: true` — 세션 쿠키(JSESSIONID) 자동 포함
 - 401 인터셉터 — admin 페이지에서 세션 만료 시 `/admin/login`으로 리다이렉트
+
+### 응시 중 답안 유지 (localStorage)
+- **수험자 인증**: `localStorage.examinee` — 로그인 시 저장, 새로고침/브라우저 재시작 시 복원, 제출 후 삭제
+- **답안 자동 저장**: `localStorage.exam_{examId}_answers` — `watch(answers, ..., { deep: true })`로 변경 시마다 저장
+- **답안 복원**: `onMounted`에서 문제 로드 후 `Object.assign(answers, saved)`로 복원
+- **정리**: `handleSubmit()` 성공 시 답안 키 삭제 + `authStore.clear()`로 수험자 키 삭제
+- **타이머**: 서버 기반 ExamSession이므로 별도 저장 불필요 (새로고침 시 서버에서 남은 시간 재계산)
+- **페이지 이탈 방지**: `beforeunload`(브라우저 새로고침/탭 닫기) + `onBeforeRouteLeave`(Vue Router 이동) — 제출 완료 전에만 확인 다이얼로그 표시, 제출 후 해제
 
 ### 라우터 가드
 - `/admin/*` (login 제외) — `meta.requiresAdmin: true`, `checkAdmin()` await 후 인증 확인
@@ -340,9 +390,16 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - `App.vue` — Manage, Scores, Members 링크는 `authStore.admin && !initLogin` 일 때만 표시. 미로그인 시 "관리자 로그인" 링크 표시
 
 ### 답안 제출 결과 관리자 전용화
-- `POST /api/submissions` — 채점은 백엔드에서 수행하되, 응답은 성공 메시지만 반환 (점수/피드백 미포함)
-- `ExamTake.vue` — 제출 후 "제출 완료" Card 표시 (결과 페이지 이동 제거)
+- `POST /api/submissions` — 답안 즉시 저장 후 성공 메시지만 반환, 채점은 `@Async`로 백그라운드 실행
+- `ExamTake.vue` — 제출 후 "제출 완료" Card 표시 (결과 페이지 이동 제거), 시간 만료 시 "시간 종료" 표시
 - `GET /api/submissions/result` — 관리자 인증 필수 (채점 결과 조회)
+
+### 채점 중 상태 표시 + 자동 폴링
+- 비동기 채점 미완료 시 `earnedScore = null` → "채점 중" Badge (amber 색상 + 스피너) 표시
+- `ScoreSummaryResponse.gradingComplete` — 전체 submission의 `earnedScore != null` 여부
+- `ScoreBoard.vue` — 목록에서 "채점 중" Badge 표시, 5초 간격 폴링으로 자동 반영
+- `ScoreDetail.vue` — 문제별 "채점 중" Badge + "채점이 완료되면 피드백이 표시됩니다" 안내, 5초 간격 폴링
+- 폴링은 채점 중 항목이 있을 때만 시작, 모두 완료되면 자동 중단 (`onUnmounted`에서 cleanup)
 
 ### 채점 답안 마커 시스템 (ScoreDetail.vue)
 - 편집 모드에서 정답(초록)/오답(빨강)/부분(주황) 마커 버튼 제공
@@ -367,9 +424,12 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 ### Phase 3 — 고도화
 - [x] 관리자 인증/권한 분리
 - [x] 관리자 계정 관리 (등록/목록/삭제 + 최초 로그인 비밀번호 변경)
+- [x] 답안 제출 비동기 채점 전환 (@Async + afterCommit + 채점 중 UI + 자동 폴링)
 - [ ] 서비스/컨트롤러 단위 테스트 추가
 - [x] 채점 결과 상세 보기 (관리자가 개별 수험자 답안+피드백 확인) — ScoreDetail.vue 별도 페이지
 - [x] 채점 결과 첨삭 기능 (관리자가 득점/피드백 인라인 수정) — PATCH /api/submissions/{id}
 - [x] 채점 답안 마커 툴바 (정답/오답/부분 색상 마커 적용·토글·교체, Ctrl+Z 지원)
 - [x] 관리자 로그인 페이지 접근 개선 — 헤더 우측에 "관리자 로그인" 링크 추가 (미로그인 시만 표시)
+- [x] 시험 시간 제한 + 카운트다운 타이머 + 자동 제출 (ExamSession 서버 기반)
+- [x] 응시 중 답안 유지 — localStorage로 수험자 인증/답안 영속화 (새로고침/브라우저 재시작 대응)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)

@@ -24,6 +24,7 @@
               <TableHead>제목</TableHead>
               <TableHead>문제 수</TableHead>
               <TableHead>총점</TableHead>
+              <TableHead>시간</TableHead>
               <TableHead>상태</TableHead>
               <TableHead>생성일</TableHead>
               <TableHead class="text-right">관리</TableHead>
@@ -37,6 +38,12 @@
                 <Badge variant="secondary">{{ exam.problemCount }}문제</Badge>
               </TableCell>
               <TableCell>{{ exam.totalScore }}점</TableCell>
+              <TableCell>
+                <span v-if="exam.timeLimit" class="flex items-center gap-1 text-sm">
+                  <Clock class="h-3.5 w-3.5 text-muted-foreground" />{{ exam.timeLimit }}분
+                </span>
+                <span v-else class="text-muted-foreground">-</span>
+              </TableCell>
               <TableCell>
                 <Badge :variant="exam.active ? 'default' : 'outline'">
                   {{ exam.active ? '활성' : '비활성' }}
@@ -79,7 +86,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Trash2, Plus } from 'lucide-vue-next'
+import { Trash2, Plus, Clock } from 'lucide-vue-next'
 
 const router = useRouter()
 const examStore = useExamStore()

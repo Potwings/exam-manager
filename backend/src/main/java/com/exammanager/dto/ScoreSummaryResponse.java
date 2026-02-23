@@ -12,5 +12,6 @@ public class ScoreSummaryResponse {
     private LocalDate examineeBirthDate;
     private int totalScore;
     private int maxScore;
+    private boolean gradingComplete;
     private LocalDateTime submittedAt;
 }

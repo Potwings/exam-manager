@@ -12,6 +12,7 @@ public class ExamDetailResponse {
     private String title;
     private List<ProblemResponse> problems;
     private int totalScore;
+    private Integer timeLimit;
     private boolean hasSubmissions;
     private LocalDateTime createdAt;
 
@@ -36,6 +37,7 @@ public class ExamDetailResponse {
                 .title(exam.getTitle())
                 .problems(problemList)
                 .totalScore(total)
+                .timeLimit(exam.getTimeLimit())
                 .hasSubmissions(hasSubmissions)
                 .createdAt(exam.getCreatedAt())
                 .build();

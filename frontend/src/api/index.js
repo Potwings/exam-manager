@@ -97,7 +97,7 @@ export function loginExaminee(name, birthDate) {
 // ===== Submission =====
 
 export function submitAnswers(examineeId, examId, answers) {
-  return api.post('/submissions', { examineeId, examId, answers }, { timeout: 300000 })
+  return api.post('/submissions', { examineeId, examId, answers }, { timeout: 30000 })
 }
 
 export function fetchResult(examineeId, examId) {
@@ -112,6 +112,16 @@ export function updateSubmission(id, data) {
 
 export function fetchScores(examId) {
   return api.get(`/scores/exam/${examId}`)
+}
+
+// ===== Exam Session =====
+
+export function createExamSession(examineeId, examId) {
+  return api.post('/exam-sessions', { examineeId, examId })
+}
+
+export function getRemainingTime(examineeId, examId) {
+  return api.get('/exam-sessions/remaining', { params: { examineeId, examId } })
 }
 
 // ===== AI Assist =====

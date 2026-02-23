@@ -6,11 +6,10 @@ import com.exammanager.dto.ExamResponse;
 import com.exammanager.dto.ProblemResponse;
 import com.exammanager.entity.Exam;
 import com.exammanager.service.ExamService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -45,22 +44,13 @@ public class ExamController {
     }
 
     @PostMapping
-    public ResponseEntity<ExamResponse> create(@RequestBody ExamCreateRequest request) {
+    public ResponseEntity<ExamResponse> create(@Valid @RequestBody ExamCreateRequest request) {
         Exam exam = examService.createExam(request);
         return ResponseEntity.ok(ExamResponse.from(exam));
     }
 
-    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ExamResponse> createFromDocx(
-            @RequestParam String title,
-            @RequestParam MultipartFile problemFile,
-            @RequestParam MultipartFile answerFile) {
-        Exam exam = examService.createExamFromDocx(title, problemFile, answerFile);
-        return ResponseEntity.ok(ExamResponse.from(exam));
-    }
-
     @PutMapping("/{id}")
-    public ResponseEntity<ExamResponse> update(@PathVariable Long id, @RequestBody ExamCreateRequest request) {
+    public ResponseEntity<ExamResponse> update(@PathVariable Long id, @Valid @RequestBody ExamCreateRequest request) {
         Exam exam = examService.updateExam(id, request);
         return ResponseEntity.ok(ExamResponse.from(exam));
     }

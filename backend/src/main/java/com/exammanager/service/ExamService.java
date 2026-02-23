@@ -11,12 +11,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -26,12 +24,11 @@ public class ExamService {
     private final ExamRepository examRepository;
     private final ProblemRepository problemRepository;
     private final SubmissionRepository submissionRepository;
-    private final DocxParserService docxParserService;
-
     @Transactional
     public Exam createExam(ExamCreateRequest request) {
         Exam exam = Exam.builder()
                 .title(request.getTitle())
+                .timeLimit(request.getTimeLimit())
                 .build();
 
         List<ExamCreateRequest.ProblemInput> problemInputs = Optional.ofNullable(request.getProblems())
@@ -50,47 +47,6 @@ public class ExamService {
                     .problem(problem)
                     .build();
             problem.setAnswer(answer);
-            exam.getProblems().add(problem);
-        }
-
-        return examRepository.save(exam);
-    }
-
-    @Transactional
-    public Exam createExamFromDocx(String title, MultipartFile problemFile, MultipartFile answerFile) {
-        List<Map<String, String>> parsedProblems = docxParserService.parseProblems(problemFile);
-        List<Map<String, String>> parsedAnswers = docxParserService.parseAnswers(answerFile);
-
-        Exam exam = Exam.builder()
-                .title(title)
-                .problemFileName(problemFile.getOriginalFilename())
-                .answerFileName(answerFile.getOriginalFilename())
-                .build();
-
-        for (Map<String, String> pp : parsedProblems) {
-            int num = Integer.parseInt(pp.get("number"));
-            String content = pp.get("content");
-
-            Problem problem = Problem.builder()
-                    .problemNumber(num)
-                    .content(content)
-                    .contentType("TEXT")
-                    .exam(exam)
-                    .build();
-
-            // 문제번호로 매칭되는 답안 찾기
-            parsedAnswers.stream()
-                    .filter(a -> Integer.parseInt(a.get("number")) == num)
-                    .findFirst()
-                    .ifPresent(pa -> {
-                        Answer answer = Answer.builder()
-                                .content(pa.get("content"))
-                                .score(Integer.parseInt(pa.get("score")))
-                                .problem(problem)
-                                .build();
-                        problem.setAnswer(answer);
-                    });
-
             exam.getProblems().add(problem);
         }
 
@@ -154,6 +110,7 @@ public class ExamService {
         }
 
         exam.setTitle(request.getTitle());
+        exam.setTimeLimit(request.getTimeLimit());
 
         // 제출 결과가 없으므로 orphanRemoval로 기존 문제/답안 안전 삭제
         exam.getProblems().clear();

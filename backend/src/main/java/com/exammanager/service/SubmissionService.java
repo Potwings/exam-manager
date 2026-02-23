@@ -5,6 +5,7 @@ import com.exammanager.dto.SubmissionUpdateRequest;
 import com.exammanager.dto.SubmissionResultResponse;
 import com.exammanager.dto.ScoreSummaryResponse;
 import com.exammanager.entity.*;
+import com.exammanager.repository.ExamSessionRepository;
 import com.exammanager.repository.ExamineeRepository;
 import com.exammanager.repository.ProblemRepository;
 import com.exammanager.repository.SubmissionRepository;
@@ -12,8 +13,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,6 +28,7 @@ public class SubmissionService {
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
     private final ExamineeRepository examineeRepository;
+    private final ExamSessionRepository examSessionRepository;
     private final GradingService gradingService;
     private final ExamService examService;
 
@@ -36,8 +41,8 @@ public class SubmissionService {
     }
 
     @Transactional
-    public SubmissionResultResponse submitAnswers(SubmissionRequest request) {
-        examService.findById(request.getExamId());
+    public void submitAnswers(SubmissionRequest request) {
+        Exam exam = examService.findById(request.getExamId());
 
         // 재시험 방지: 이미 해당 시험에 제출한 기록이 있으면 409 반환
         if (submissionRepository.existsByExamineeIdAndProblemExamId(request.getExamineeId(), request.getExamId())) {
@@ -45,7 +50,19 @@ public class SubmissionService {
         }
 
         Examinee examinee = examineeRepository.findById(request.getExamineeId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + request.getExamineeId()));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다"));
+
+        // 시간 제한 검증: timeLimit이 설정된 시험은 시간 초과 여부 확인 (1분 여유시간 부여)
+        if (exam.getTimeLimit() != null) {
+            ExamSession session = examSessionRepository.findByExamineeIdAndExamId(request.getExamineeId(), request.getExamId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "시험 시간이 종료되었습니다"));
+            LocalDateTime deadline = session.getStartedAt()
+                    .plusMinutes(exam.getTimeLimit())
+                    .plusMinutes(1);
+            if (LocalDateTime.now().isAfter(deadline)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "시험 시간이 종료되었습니다");
+            }
+        }
 
         List<Problem> problems = problemRepository.findByExamIdOrderByProblemNumber(request.getExamId());
         Map<Long, Problem> problemMap = problems.stream()
@@ -71,19 +88,21 @@ public class SubmissionService {
                             .problem(problem)
                             .build());
 
+            // 답안만 저장 (채점은 비동기로 별도 처리)
             submission.setSubmittedAnswer(item.getAnswer());
-
-            if (problem.getAnswer() != null) {
-                gradingService.grade(submission, problem.getAnswer());
-            }
-
             submissionRepository.save(submission);
         }
 
-        List<Submission> allSubmissions = submissionRepository
-                .findByExamineeIdAndProblemExamId(examinee.getId(), request.getExamId());
-
-        return buildResult(examinee, request.getExamId(), problems, allSubmissions);
+        // 트랜잭션 커밋이 완료된 후에 비동기 채점을 트리거
+        // (커밋 전에 호출하면 비동기 스레드에서 아직 저장 안 된 데이터를 조회할 수 없음)
+        Long examineeId = examinee.getId();
+        Long examId = request.getExamId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                gradingService.gradeSubmissionsAsync(examineeId, examId);
+            }
+        });
     }
 
     @Transactional
@@ -109,7 +128,7 @@ public class SubmissionService {
         examService.findById(examId);
 
         Examinee examinee = examineeRepository.findById(examineeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다: " + examineeId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다"));
 
         List<Problem> problems = problemRepository.findByExamIdOrderByProblemNumber(examId);
         List<Submission> submissions = submissionRepository.findByExamineeIdAndProblemExamId(examineeId, examId);
@@ -135,12 +154,14 @@ public class SubmissionService {
                     List<Submission> subs = entry.getValue();
                     Examinee ex = subs.get(0).getExaminee();
                     int total = subs.stream().mapToInt(s -> s.getEarnedScore() != null ? s.getEarnedScore() : 0).sum();
+                    boolean allGraded = subs.stream().allMatch(s -> s.getEarnedScore() != null);
                     return ScoreSummaryResponse.builder()
                             .examineeId(ex.getId())
                             .examineeName(ex.getName())
                             .examineeBirthDate(ex.getBirthDate())
                             .totalScore(total)
                             .maxScore(maxScore)
+                            .gradingComplete(allGraded)
                             .submittedAt(subs.stream()
                                     .map(Submission::getSubmittedAt)
                                     .filter(Objects::nonNull)

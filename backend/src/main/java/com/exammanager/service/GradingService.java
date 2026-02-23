@@ -2,10 +2,15 @@ package com.exammanager.service;
 
 import com.exammanager.entity.Answer;
 import com.exammanager.entity.Submission;
+import com.exammanager.repository.SubmissionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -13,6 +18,7 @@ import org.springframework.stereotype.Service;
 public class GradingService {
 
     private final OllamaClient ollamaClient;
+    private final SubmissionRepository submissionRepository;
 
     private static final String SYSTEM_PROMPT = """
             당신은 기술 면접 필기시험의 엄격한 채점관입니다. 수험자의 답안을 채점 기준에 따라 공정하고 엄격하게 채점하세요.
@@ -88,6 +94,31 @@ public class GradingService {
         }
 
         gradeFallback(submission, answer);
+    }
+
+    @Async
+    @Transactional
+    public void gradeSubmissionsAsync(Long examineeId, Long examId) {
+        List<Submission> submissions = submissionRepository
+                .findByExamineeIdAndProblemExamId(examineeId, examId);
+
+        log.info("비동기 채점 시작 - examineeId: {}, examId: {}, 문제 수: {}",
+                examineeId, examId, submissions.size());
+
+        for (Submission submission : submissions) {
+            try {
+                Answer answer = submission.getProblem().getAnswer();
+                if (answer != null) {
+                    grade(submission, answer);
+                    submissionRepository.save(submission);
+                }
+            } catch (Exception e) {
+                log.error("채점 실패 - submissionId: {}, error: {}",
+                        submission.getId(), e.getMessage());
+            }
+        }
+
+        log.info("비동기 채점 완료 - examineeId: {}, examId: {}", examineeId, examId);
     }
 
     private void gradeWithLlm(Submission submission, Answer answer) {
