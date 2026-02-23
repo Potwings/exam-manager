@@ -49,6 +49,9 @@ public class SubmissionService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 응시 완료한 시험입니다");
         }
 
+        Examinee examinee = examineeRepository.findById(request.getExamineeId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다"));
+
         // 시간 제한 검증: timeLimit이 설정된 시험은 시간 초과 여부 확인 (1분 여유시간 부여)
         if (exam.getTimeLimit() != null) {
             ExamSession session = examSessionRepository.findByExamineeIdAndExamId(request.getExamineeId(), request.getExamId())
@@ -60,9 +63,6 @@ public class SubmissionService {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "시험 시간이 종료되었습니다");
             }
         }
-
-        Examinee examinee = examineeRepository.findById(request.getExamineeId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다"));
 
         List<Problem> problems = problemRepository.findByExamIdOrderByProblemNumber(request.getExamId());
         Map<Long, Problem> problemMap = problems.stream()

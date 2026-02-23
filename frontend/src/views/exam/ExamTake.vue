@@ -339,15 +339,16 @@ watch(answers, (val) => {
 
 // 페이지 이탈 방지: 브라우저 새로고침/탭 닫기 시 확인 다이얼로그
 function handleBeforeUnload(e) {
-  if (!submitted.value) {
+  if (!submitted.value && !sessionError.value) {
     e.preventDefault()
+    e.returnValue = ''
   }
 }
 window.addEventListener('beforeunload', handleBeforeUnload)
 
 // 페이지 이탈 방지: Vue Router 이동 시 확인
 onBeforeRouteLeave(() => {
-  if (!submitted.value) {
+  if (!submitted.value && !sessionError.value) {
     return confirm('변경사항이 저장되지 않을 수 있습니다.')
   }
 })

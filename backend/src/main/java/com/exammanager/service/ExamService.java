@@ -24,9 +24,6 @@ public class ExamService {
     private final ExamRepository examRepository;
     private final ProblemRepository problemRepository;
     private final SubmissionRepository submissionRepository;
-    // docx 업로드 기능 제거 예정 — 비활성화
-    // private final DocxParserService docxParserService;
-
     @Transactional
     public Exam createExam(ExamCreateRequest request) {
         Exam exam = Exam.builder()
@@ -55,47 +52,6 @@ public class ExamService {
 
         return examRepository.save(exam);
     }
-
-    // docx 업로드 기능 제거 예정 — 비활성화
-    // @Transactional
-    // public Exam createExamFromDocx(String title, MultipartFile problemFile, MultipartFile answerFile) {
-    //     List<Map<String, String>> parsedProblems = docxParserService.parseProblems(problemFile);
-    //     List<Map<String, String>> parsedAnswers = docxParserService.parseAnswers(answerFile);
-    //
-    //     Exam exam = Exam.builder()
-    //             .title(title)
-    //             .problemFileName(problemFile.getOriginalFilename())
-    //             .answerFileName(answerFile.getOriginalFilename())
-    //             .build();
-    //
-    //     for (Map<String, String> pp : parsedProblems) {
-    //         int num = Integer.parseInt(pp.get("number"));
-    //         String content = pp.get("content");
-    //
-    //         Problem problem = Problem.builder()
-    //                 .problemNumber(num)
-    //                 .content(content)
-    //                 .contentType("TEXT")
-    //                 .exam(exam)
-    //                 .build();
-    //
-    //         parsedAnswers.stream()
-    //                 .filter(a -> Integer.parseInt(a.get("number")) == num)
-    //                 .findFirst()
-    //                 .ifPresent(pa -> {
-    //                     Answer answer = Answer.builder()
-    //                             .content(pa.get("content"))
-    //                             .score(Integer.parseInt(pa.get("score")))
-    //                             .problem(problem)
-    //                             .build();
-    //                     problem.setAnswer(answer);
-    //                 });
-    //
-    //         exam.getProblems().add(problem);
-    //     }
-    //
-    //     return examRepository.save(exam);
-    // }
 
     public List<Exam> findAll() {
         return examRepository.findByDeletedFalse();

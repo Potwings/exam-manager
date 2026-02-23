@@ -116,9 +116,10 @@ async function handleLogin() {
 
   loginLoading.value = true
   try {
+    const trimmedName = name.value.trim()
     const raw = birthDate.value
     const formatted = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`
-    await authStore.login(name.value, formatted)
+    await authStore.login(trimmedName, formatted)
     router.push(`/exam/take/${examStore.activeExam.id}`)
   } catch (e) {
     alert('로그인 실패: ' + (e.response?.data?.message || e.message))

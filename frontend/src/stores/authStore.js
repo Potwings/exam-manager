@@ -20,7 +20,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(name, birthDate) {
     const { data } = await loginExaminee(name, birthDate)
     examinee.value = data
-    localStorage.setItem('examinee', JSON.stringify(data))
+    try {
+      localStorage.setItem('examinee', JSON.stringify(data))
+    } catch { /* private browsing / quota exceeded — 인메모리 세션 유지 */ }
     return data
   }
 

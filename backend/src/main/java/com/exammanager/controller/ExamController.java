@@ -49,16 +49,6 @@ public class ExamController {
         return ResponseEntity.ok(ExamResponse.from(exam));
     }
 
-    // docx 업로드 기능 제거 예정 — 비활성화
-    // @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    // public ResponseEntity<ExamResponse> createFromDocx(
-    //         @RequestParam String title,
-    //         @RequestParam MultipartFile problemFile,
-    //         @RequestParam MultipartFile answerFile) {
-    //     Exam exam = examService.createExamFromDocx(title, problemFile, answerFile);
-    //     return ResponseEntity.ok(ExamResponse.from(exam));
-    // }
-
     @PutMapping("/{id}")
     public ResponseEntity<ExamResponse> update(@PathVariable Long id, @Valid @RequestBody ExamCreateRequest request) {
         Exam exam = examService.updateExam(id, request);
