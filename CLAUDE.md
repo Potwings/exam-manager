@@ -381,6 +381,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - **답안 복원**: `onMounted`에서 문제 로드 후 `Object.assign(answers, saved)`로 복원
 - **정리**: `handleSubmit()` 성공 시 답안 키 삭제 + `authStore.clear()`로 수험자 키 삭제
 - **타이머**: 서버 기반 ExamSession이므로 별도 저장 불필요 (새로고침 시 서버에서 남은 시간 재계산)
+- **페이지 이탈 방지**: `beforeunload`(브라우저 새로고침/탭 닫기) + `onBeforeRouteLeave`(Vue Router 이동) — 제출 완료 전에만 확인 다이얼로그 표시, 제출 후 해제
 
 ### 라우터 가드
 - `/admin/*` (login 제외) — `meta.requiresAdmin: true`, `checkAdmin()` await 후 인증 확인

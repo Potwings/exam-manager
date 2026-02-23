@@ -114,7 +114,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { renderMarkdown } from '@/lib/markdown'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useExamStore } from '@/stores/examStore'
 import { submitAnswers, createExamSession } from '@/api'
@@ -298,8 +298,24 @@ watch(answers, (val) => {
   }
 }, { deep: true })
 
+// 페이지 이탈 방지: 브라우저 새로고침/탭 닫기 시 확인 다이얼로그
+function handleBeforeUnload(e) {
+  if (!submitted.value) {
+    e.preventDefault()
+  }
+}
+window.addEventListener('beforeunload', handleBeforeUnload)
+
+// 페이지 이탈 방지: Vue Router 이동 시 확인
+onBeforeRouteLeave(() => {
+  if (!submitted.value) {
+    return confirm('변경사항이 저장되지 않을 수 있습니다.')
+  }
+})
+
 onUnmounted(() => {
   stopTimer()
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
 async function handleSubmit() {
