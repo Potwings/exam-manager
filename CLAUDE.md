@@ -293,7 +293,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 |--------|-------|------|
 | Admin | admins | 관리자 (username:`UNIQUE`, password:`BCrypt`, role, **initLogin**) |
 | Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**, **timeLimit**) |
-| Problem | problems | 문제 (problemNumber, content, **contentType**, **parent_id**) → Exam N:1, 자기참조 부모-자식 |
+| Problem | problems | 문제 (problemNumber, content, **contentType**, **codeEditor**, **parent_id**) → Exam N:1, 자기참조 부모-자식 |
 | Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
 | Examinee | examinees | 시험자 (name, **birthDate**) |
 | Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**, **annotatedAnswer**) → Examinee, Problem N:1 |
@@ -335,10 +335,10 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 
 | 클래스 | 용도 |
 |--------|------|
-| ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, answerContent, score, **children**}]) |
+| ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, **codeEditor**, answerContent, score, **children**}]) |
 | ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, **timeLimit**, createdAt) — problemCount는 최상위 문제만 카운트 |
 | ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions**, **timeLimit** 포함) — problems는 최상위만 필터 (자식은 재귀 포함) |
-| ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, answerContent?, score?, **children**) — 답안은 관리자용만 포함, children 재귀 매핑 |
+| ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, **codeEditor**, answerContent?, score?, **children**) — 답안은 관리자용만 포함, children 재귀 매핑 |
 | AiAssistRequest | AI 출제 요청 (topic, difficulty 등) |
 | AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
 | AdminLoginRequest | 관리자 로그인 요청 (username, password) |
@@ -389,9 +389,11 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 
 ## Monaco Editor (코드 에디터)
 
-- **적용 문제**: Q9, Q10, Q11, Q13, Q14 (`CODE_PROBLEM_NUMBERS` 배열로 관리)
-- **기본 언어**: Q13 → SQL, Q11 → JavaScript, 나머지 → Java
-- **수험자가 언어 변경 가능**: 드롭다운 (Java / JavaScript / Python / SQL)
+- **적용 기준**: 문제별 `codeEditor` 필드 (`Boolean`, 기본값 `false`) — 관리자가 시험 생성/수정 시 문제마다 개별 설정
+- **관리자 UI** (`ExamCreate.vue`): 독립 문제·하위 문제 헤더에 "코드 에디터" 토글 버튼 (초록색 강조)
+- **응시자 UI** (`ExamTake.vue`): `problem.codeEditor === true`이면 Monaco Editor, 아니면 textarea 표시
+- **시험 상세** (`ExamDetail.vue`): `codeEditor=true` 문제에 점수 옆 "코드 에디터" Badge 표시
+- **기본 언어**: Java (수험자가 드롭다운으로 Java / JavaScript / Python / SQL 변경 가능)
 - **설정**: VS Code 다크 테마, minimap 비활성화, fontSize 14, wordWrap on
 - **CDN**: `https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs`
 

@@ -99,7 +99,7 @@
                 <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ child.content }}</pre>
 
                 <!-- 답안 입력 -->
-                <div v-if="isCodeProblem(child, problem)" class="border rounded-md overflow-hidden">
+                <div v-if="isCodeProblem(child)" class="border rounded-md overflow-hidden">
                   <div class="flex items-center justify-between bg-muted px-3 py-1.5">
                     <span class="text-xs text-muted-foreground font-mono">Code Editor</span>
                     <select
@@ -223,8 +223,6 @@ let callCooldownTimer = null
 const remainingSeconds = ref(null)
 let timerId = null
 
-const CODE_PROBLEM_NUMBERS = [9, 10, 11, 13, 14]
-
 const editorOptions = {
   minimap: { enabled: false },
   fontSize: 14,
@@ -304,10 +302,8 @@ function stopTimer() {
   }
 }
 
-function isCodeProblem(problem, parent) {
-  // 하위 문제인 경우 부모 번호 기준으로 판별
-  const num = parent ? parent.problemNumber : problem.problemNumber
-  return CODE_PROBLEM_NUMBERS.includes(num)
+function isCodeProblem(problem) {
+  return !!problem.codeEditor
 }
 
 function renderMd(text) {
@@ -317,19 +313,14 @@ function renderMd(text) {
 function initLanguages(problems) {
   for (const p of problems) {
     if (p.children && p.children.length > 0) {
-      // 그룹 문제의 하위 문제들
       for (const child of p.children) {
-        if (isCodeProblem(child, p)) {
-          if (p.problemNumber === 13) languages[child.id] = 'sql'
-          else if (p.problemNumber === 11) languages[child.id] = 'javascript'
-          else languages[child.id] = 'java'
+        if (isCodeProblem(child)) {
+          languages[child.id] = 'java'
         }
       }
     } else {
       if (isCodeProblem(p)) {
-        if (p.problemNumber === 13) languages[p.id] = 'sql'
-        else if (p.problemNumber === 11) languages[p.id] = 'javascript'
-        else languages[p.id] = 'java'
+        languages[p.id] = 'java'
       }
     }
   }
