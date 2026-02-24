@@ -50,4 +50,20 @@ class NotificationServiceTest {
         assertThatNoException().isThrownBy(() ->
                 notificationService.notifyGradingComplete(1L, 1L, "홍길동", 80, 100));
     }
+
+    @Test
+    void notifyAdminCall_연결된_emitter가_없으면_예외_없이_종료된다() {
+        assertThatNoException().isThrownBy(() ->
+                notificationService.notifyAdminCall(1L, 1L, "홍길동"));
+    }
+
+    @Test
+    void notifyAdminCall_연결된_emitter에_이벤트를_전송한다() {
+        SseEmitter emitter = notificationService.createEmitter();
+
+        assertThatNoException().isThrownBy(() ->
+                notificationService.notifyAdminCall(1L, 1L, "홍길동"));
+
+        assertThat(emitter).isNotNull();
+    }
 }

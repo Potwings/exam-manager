@@ -38,6 +38,32 @@ public class NotificationService {
         return emitter;
     }
 
+    public void notifyAdminCall(Long examineeId, Long examId, String examineeName) {
+        if (emitters.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> data = Map.of(
+                "examineeId", examineeId,
+                "examId", examId,
+                "examineeName", examineeName
+        );
+
+        log.info("관리자 호출 알림 전송 - {} (시험 ID: {}), 대상 연결 수: {}",
+                examineeName, examId, emitters.size());
+
+        for (SseEmitter emitter : emitters) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("admin-call")
+                        .data(data));
+            } catch (IOException e) {
+                emitters.remove(emitter);
+                log.debug("SSE 전송 실패, 연결 제거: {}", e.getMessage());
+            }
+        }
+    }
+
     public void notifyGradingComplete(Long examineeId, Long examId,
                                       String examineeName, int totalScore, int maxScore) {
         if (emitters.isEmpty()) {

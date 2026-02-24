@@ -124,6 +124,12 @@ export function getRemainingTime(examineeId, examId) {
   return api.get('/exam-sessions/remaining', { params: { examineeId, examId } })
 }
 
+// ===== Notification =====
+
+export function callAdmin(examineeId, examId, examineeName) {
+  return api.post('/notifications/call-admin', { examineeId, examId, examineeName })
+}
+
 // ===== AI Assist =====
 
 export function checkAiStatus() {

@@ -18,6 +18,18 @@ function handleGradingComplete(event) {
   }
 }
 
+function handleAdminCall(event) {
+  const data = JSON.parse(event.data)
+  const { examineeName } = data
+  const message = `${examineeName}님이 도움을 요청했습니다`
+
+  if (document.visibilityState === 'visible') {
+    toast.warning('관리자 호출', { description: message })
+  } else {
+    showBrowserNotification('관리자 호출', message)
+  }
+}
+
 function showBrowserNotification(title, body) {
   if (!('Notification' in window) || Notification.permission !== 'granted') {
     return
@@ -40,6 +52,7 @@ export function connect() {
   eventSource = new EventSource('/api/notifications/stream', { withCredentials: true })
 
   eventSource.addEventListener('grading-complete', handleGradingComplete)
+  eventSource.addEventListener('admin-call', handleAdminCall)
 
   eventSource.onopen = () => {
     connected.value = true
@@ -67,6 +80,7 @@ export function disconnect() {
 function cleanup() {
   if (eventSource) {
     eventSource.removeEventListener('grading-complete', handleGradingComplete)
+    eventSource.removeEventListener('admin-call', handleAdminCall)
     eventSource.close()
     eventSource = null
     connected.value = false
