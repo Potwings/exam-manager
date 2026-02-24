@@ -48,24 +48,30 @@
             <h1 class="text-2xl font-bold tracking-tight">{{ examStore.currentExam?.title || '시험' }}</h1>
             <p class="text-muted-foreground">모든 문제에 답변한 후 제출하세요.</p>
           </div>
-          <!-- 타이머 위젯 -->
-          <div
-            v-if="formattedTime !== null"
-            class="flex flex-col items-center py-2.5 px-4 rounded-xl border-2 shadow-lg transition-colors duration-500 shrink-0"
-            :class="timerBgClass"
-          >
-            <span class="text-[10px] font-medium tracking-widest uppercase opacity-70">남은 시간</span>
-            <div class="flex items-center gap-1.5 mt-0.5">
-              <Timer class="h-4 w-4" :class="{ 'animate-pulse': remainingSeconds <= 60 }" />
-              <span class="font-mono text-2xl font-bold tabular-nums tracking-tight">{{ formattedTime }}</span>
-            </div>
-            <!-- 프로그레스 바 -->
-            <div class="w-full h-1 rounded-full mt-2 overflow-hidden" :class="progressTrackClass">
-              <div
-                class="h-full rounded-full transition-all duration-1000 ease-linear"
-                :class="progressBarClass"
-                :style="{ width: progressPercent + '%' }"
-              />
+          <div class="flex items-end gap-3 shrink-0">
+            <!-- 관리자 호출 -->
+            <Button variant="destructive" size="sm" @click="handleCallAdmin" :disabled="callCooldown > 0 || isCallingAdmin" class="text-xs h-8 px-3 mb-1">
+              {{ callCooldown > 0 ? `호출 (${callCooldown}초)` : '관리자 호출' }}
+            </Button>
+            <!-- 타이머 위젯 -->
+            <div
+              v-if="formattedTime !== null"
+              class="flex flex-col items-center py-2.5 px-4 rounded-xl border-2 shadow-lg transition-colors duration-500"
+              :class="timerBgClass"
+            >
+              <span class="text-[10px] font-medium tracking-widest uppercase opacity-70">남은 시간</span>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <Timer class="h-4 w-4" :class="{ 'animate-pulse': remainingSeconds <= 60 }" />
+                <span class="font-mono text-2xl font-bold tabular-nums tracking-tight">{{ formattedTime }}</span>
+              </div>
+              <!-- 프로그레스 바 -->
+              <div class="w-full h-1 rounded-full mt-2 overflow-hidden" :class="progressTrackClass">
+                <div
+                  class="h-full rounded-full transition-all duration-1000 ease-linear"
+                  :class="progressBarClass"
+                  :style="{ width: progressPercent + '%' }"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -135,7 +141,7 @@ import { renderMarkdown } from '@/lib/markdown'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useExamStore } from '@/stores/examStore'
-import { submitAnswers, createExamSession } from '@/api'
+import { submitAnswers, createExamSession, callAdmin } from '@/api'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -153,6 +159,9 @@ const loading = ref(false)
 const submitted = ref(false)
 const timeExpired = ref(false)
 const sessionError = ref(false)
+const callCooldown = ref(0)
+const isCallingAdmin = ref(false)
+let callCooldownTimer = null
 
 // 타이머 관련 상태
 const remainingSeconds = ref(null)
@@ -355,8 +364,35 @@ onBeforeRouteLeave(() => {
 
 onUnmounted(() => {
   stopTimer()
+  clearInterval(callCooldownTimer)
   window.removeEventListener('beforeunload', handleBeforeUnload)
 })
+
+async function handleCallAdmin() {
+  if (callCooldown.value > 0 || isCallingAdmin.value || !authStore.examinee) return
+
+  isCallingAdmin.value = true
+  try {
+    await callAdmin(
+      authStore.examinee.id,
+      route.params.examId,
+      authStore.examinee.name
+    )
+    // 30초 쿨다운 시작 — 스팸 방지
+    callCooldown.value = 30
+    callCooldownTimer = setInterval(() => {
+      callCooldown.value--
+      if (callCooldown.value <= 0) {
+        clearInterval(callCooldownTimer)
+        callCooldownTimer = null
+      }
+    }, 1000)
+  } catch {
+    alert('관리자 호출에 실패했습니다. 잠시 후 다시 시도해주세요.')
+  } finally {
+    isCallingAdmin.value = false
+  }
+}
 
 async function handleSubmit() {
   if (!authStore.examinee) {
