@@ -45,7 +45,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/examinees/**").permitAll()
                         .requestMatchers("/api/exam-sessions/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/submissions").permitAll()
-                        // 관리자 전용 엔드포인트
+                        // 수험자 → 관리자 호출 (수험자는 Spring Security 인증 없음)
+                        .requestMatchers(HttpMethod.POST, "/api/notifications/call-admin").permitAll()
+                        // 관리자 전용 엔드포인트 (SSE 스트림 등)
+                        .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/exams/**").authenticated()
                         .requestMatchers("/api/submissions/**").authenticated()
                         .requestMatchers("/api/scores/**").authenticated()

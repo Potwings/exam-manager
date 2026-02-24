@@ -14,6 +14,7 @@
 - **인증**: Spring Security 6 (세션 기반, BCrypt)
 - **LLM 채점**: Ollama (gemma3 모델, 로컬 `http://localhost:11434`)
 - **코드 에디터**: Monaco Editor (`@guolao/vue-monaco-editor`, CDN 로드)
+- **알림**: vue-sonner (Toast) + SSE (Server-Sent Events) + Browser Notification API
 
 ## Project Structure
 
@@ -24,6 +25,7 @@ exam-scorer/
 │       ├── api/             # Axios 인스턴스 + API 호출 함수
 │       ├── assets/          # index.css (Tailwind + shadcn 테마)
 │       ├── components/ui/   # shadcn-vue 컴포넌트 (npx shadcn-vue로 관리)
+│       ├── composables/     # Vue 컴포저블 (useNotifications)
 │       ├── lib/             # utils.ts (cn 헬퍼), markdown.js (markdown-it 래퍼)
 │       ├── stores/          # Pinia (authStore, examStore)
 │       ├── views/
@@ -33,8 +35,8 @@ exam-scorer/
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/exammanager/
 │       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, AdminInitializer, InitLoginFilter
-│       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController, ExamSessionController
-│       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService, AdminUserDetailsService
+│       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController, ExamSessionController, NotificationController
+│       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService, AdminUserDetailsService, NotificationService
 │       ├── repository/      # JPA Repositories (6개)
 │       ├── entity/          # Admin, Exam, Problem, Answer, Examinee, Submission, ExamSession
 │       └── dto/             # 요청/응답 DTO
@@ -309,6 +311,8 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 | POST | `/api/ai-assist/generate` | AiAssistController | AI 문제/채점기준 자동 생성 — **Admin** |
 | POST | `/api/exam-sessions` | ExamSessionController | 시험 세션 생성/조회 (find-or-create, 남은 시간 반환) — **Public** |
 | GET | `/api/exam-sessions/remaining` | ExamSessionController | 남은 시간 조회 (새로고침용) — **Public** |
+| GET | `/api/notifications/stream` | NotificationController | SSE 알림 스트림 (채점 완료/관리자 호출 이벤트) — **Admin** |
+| POST | `/api/notifications/call-admin` | NotificationController | 수험자 → 관리자 호출 알림 전송 — **Public** |
 
 ## DTO
 
@@ -332,6 +336,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 | ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, **gradingComplete**, submittedAt) |
 | ExamSessionRequest | 시험 세션 생성 요청 (examineeId, examId) |
 | ExamSessionResponse | 시험 세션 응답 (remainingSeconds — null이면 시간 제한 없음) |
+| AdminCallRequest | 관리자 호출 요청 (examineeId, examId, examineeName) |
 
 ## Routes (Frontend)
 
@@ -396,8 +401,10 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 |------|------|------|
 | Public | `GET /api/exams/active`, `POST /api/examinees/**`, `POST /api/submissions`, `/api/exam-sessions/**` | permitAll |
 | Public | `/api/admin/login`, `/api/admin/me` | permitAll |
+| Public | `POST /api/notifications/call-admin` | permitAll |
 | Admin | `GET/POST/PUT/DELETE/PATCH /api/exams/**` (active 제외) | authenticated |
 | Admin | `GET/PATCH /api/submissions/**` (POST 제외), `/api/scores/**`, `/api/ai-assist/**` | authenticated |
+| Admin | `/api/notifications/**` (call-admin 제외) | authenticated |
 
 ### 수험자 인증 (이름 + 생년월일)
 - `Examinee` 엔티티에 `birthDate` (LocalDate) 필드 추가
@@ -442,6 +449,53 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - `ScoreDetail.vue` — 문제별 "채점 중" Badge + "채점이 완료되면 피드백이 표시됩니다" 안내, 5초 간격 폴링
 - 폴링은 채점 중 항목이 있을 때만 시작, 모두 완료되면 자동 중단 (`onUnmounted`에서 cleanup)
 
+### 알림 시스템 (SSE + Toast + Browser Notification)
+
+#### 아키텍처
+```
+1) 채점 완료 알림 (서버 → 관리자)
+GradingService.gradeSubmissionsAsync() 완료
+  → NotificationService.notifyGradingComplete()
+    → SseEmitter.send("grading-complete") (모든 연결된 관리자에게 push)
+      → 프론트엔드 EventSource 수신
+        → 탭 활성: toast.success('채점 완료')
+        → 탭 비활성: Browser Notification API
+
+2) 관리자 호출 (수험자 → 서버 → 관리자)
+ExamTake.vue "관리자 호출" 버튼 클릭
+  → POST /api/notifications/call-admin (permitAll)
+    → NotificationService.notifyAdminCall()
+      → SseEmitter.send("admin-call") (모든 연결된 관리자에게 push)
+        → 프론트엔드 EventSource 수신
+          → 탭 활성: toast.warning('관리자 호출')
+          → 탭 비활성: Browser Notification API
+```
+
+#### 백엔드 (SSE)
+- `NotificationService`: `CopyOnWriteArrayList<SseEmitter>` 스레드 안전 관리
+  - `createEmitter()`: 30분 타임아웃 SseEmitter 생성 + onCompletion/onTimeout/onError 자동 정리
+  - `notifyGradingComplete()`: 모든 emitter에 `grading-complete` 이벤트 JSON 전송, IOException 시 해당 emitter 제거
+  - `notifyAdminCall()`: 모든 emitter에 `admin-call` 이벤트 JSON 전송 (수험자 이름, 시험 ID 포함)
+- `NotificationController`:
+  - `GET /api/notifications/stream` — SSE 스트림 (`text/event-stream`) — **Admin**
+  - `POST /api/notifications/call-admin` — 관리자 호출 요청 (`AdminCallRequest`) — **Public**
+- `GradingService`: 채점 루프 완료 후 총점 계산 + 수험자 이름 조회 + 알림 전송 (try-catch로 실패 격리)
+
+#### 프론트엔드 (SSE 수신)
+- `useNotifications.js` 컴포저블: EventSource SSE 연결 관리
+  - `connect()`: SSE 연결 생성 + `shouldReconnect=true`
+  - `disconnect()`: `shouldReconnect=false` + 타이머 정리 + EventSource 종료
+  - `onerror`: `shouldReconnect` 플래그 확인 후 3초 딜레이 자동 재연결 (의도적 disconnect 시 재연결 방지)
+  - `grading-complete` 이벤트: 탭 활성 → `toast.success()`, 탭 비활성 → `new Notification()`
+  - `admin-call` 이벤트: 탭 활성 → `toast.warning()`, 탭 비활성 → `new Notification()`
+  - `requestPermission()`: 관리자 로그인 시 브라우저 알림 권한 요청
+- `App.vue`: `<Toaster />` 마운트 + `watch(authStore.admin)` → 로그인 시 connect, 로그아웃 시 disconnect
+
+#### 관리자 호출 UI (`ExamTake.vue`)
+- sticky 헤더 우측 타이머 좌측에 "관리자 호출" 버튼 배치 (`variant="destructive"`)
+- 30초 쿨다운: 호출 후 버튼 비활성화 + "호출 (N초)" 카운트다운 표시 (스팸 방지)
+- 제출 완료 후 호출 버튼 미표시 (submitted 상태에서는 완료 Card만 표시)
+
 ### 채점 답안 마커 시스템 (ScoreDetail.vue)
 - 편집 모드에서 정답(초록)/오답(빨강)/부분(주황) 마커 버튼 제공
 - 마커 문법: `[정답]텍스트[/정답]`, `[오답]텍스트[/오답]`, `[부분]텍스트[/부분]`
@@ -473,5 +527,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - [x] 관리자 로그인 페이지 접근 개선 — 헤더 우측에 "관리자 로그인" 링크 추가 (미로그인 시만 표시)
 - [x] 시험 시간 제한 + 카운트다운 타이머 + 자동 제출 (ExamSession 서버 기반)
 - [x] 응시 중 답안 유지 — localStorage로 수험자 인증/답안 영속화 (새로고침/브라우저 재시작 대응)
+- [x] 채점 완료 알림 — SSE + vue-sonner Toast + Browser Notification API (관리자 실시간 알림)
+- [x] 관리자 호출 — 수험자가 시험 중 관리자에게 도움 요청 (SSE admin-call 이벤트 + 30초 쿨다운)
 - [x] 그룹 문제(꼬리 문제) — 부모-자식 문제 구조 (생성/수정/복제/응시/채점/결과 표시)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)

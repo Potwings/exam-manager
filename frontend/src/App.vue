@@ -35,26 +35,45 @@
     <main class="max-w-5xl mx-auto px-6 py-8">
       <router-view />
     </main>
+    <Toaster />
   </div>
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import { useNotifications } from '@/composables/useNotifications'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Toaster } from '@/components/ui/sonner'
 import { LogOut } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { connect, disconnect, requestPermission } = useNotifications()
 
-onMounted(() => {
-  authStore.checkAdmin()
+onMounted(async () => {
+  await authStore.checkAdmin()
+  if (authStore.admin) {
+    connect()
+    requestPermission()
+  }
+})
+
+// 로그인/로그아웃 시 SSE 연결 자동 관리
+watch(() => authStore.admin, (admin) => {
+  if (admin) {
+    connect()
+    requestPermission()
+  } else {
+    disconnect()
+  }
 })
 
 async function handleLogout() {
   try {
+    disconnect()
     await authStore.logoutAdmin()
   } finally {
     router.push('/admin/login')
