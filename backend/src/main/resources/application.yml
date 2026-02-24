@@ -25,6 +25,9 @@ spring:
 
 app:
   upload-dir: ./uploads
+  cors:
+    allowed-origins:
+      - http://localhost:5173
 
 ollama:
   base-url: http://localhost:11434

@@ -34,7 +34,7 @@ exam-scorer/
 │       └── router/          # Vue Router
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/exammanager/
-│       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, AdminInitializer, InitLoginFilter
+│       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, CorsProperties, AdminInitializer, InitLoginFilter
 │       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController, ExamSessionController, NotificationController
 │       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService, AdminUserDetailsService, NotificationService
 │       ├── repository/      # JPA Repositories (6개)
@@ -83,7 +83,7 @@ npx shadcn-vue@latest add <component-name>
 - **경로 alias**: `@/` → `src/` (tsconfig paths + vite alias)
 - **상태관리**: Pinia Composition API 스타일 (`defineStore` + `ref`)
 - **라우터**: `src/router/index.js`에 정의. views는 `admin/`, `exam/` 디렉토리로 구분
-- **API 호출**: `src/api/index.js`의 axios 인스턴스 + named export 함수 사용. Vite proxy로 `/api` → `localhost:8080` 연결
+- **API 호출**: `src/api/index.js`의 axios 인스턴스 + named export 함수 사용. Vite proxy로 `/api` → `API_TARGET` (`.env`) 연결
 - **코드 에디터**: Monaco Editor는 `main.js`에서 글로벌 플러그인으로 등록. CDN(`jsdelivr`)에서 로드
 - **헤더**: 좌상단 서비스명 "ExamManager" 표시. 관리자 미로그인 시 우측에 "관리자 로그인" 링크 표시 (`text-xs`, `text-muted-foreground/60`로 눈에 띄지 않게 처리) (`App.vue`)
 
@@ -99,16 +99,33 @@ npx shadcn-vue@latest add <component-name>
 
 ## 설정 파일 구조
 
+### Backend (Spring Boot)
 ```
 application.yml          — 운영 안전 기본값 (validate, show-sql: false, ${DB_USERNAME}/${DB_PASSWORD})
 application-dev.yml      — 개발 오버라이드 (update, show-sql: true), profiles.include: local
-application-local.yml    — DB 자격증명 (gitignored, **/application-local.yml)
+application-local.yml    — DB 자격증명 + CORS 허용 origin (gitignored, **/application-local.yml)
 ```
 
 - `application.yml`의 `spring.profiles.active: dev`로 로컬 개발 시 자동 적용
 - 프로파일 로딩: `application.yml` → `application-dev.yml` → `application-local.yml`
 - 테스트: `src/test/resources/application.yml` + `application-local.yml` (create-drop, MariaDB)
 - 운영 배포 시: `SPRING_PROFILES_ACTIVE` 환경변수로 dev 비활성화, `DB_USERNAME`/`DB_PASSWORD` 환경변수 주입
+
+### CORS 설정
+- `CorsProperties.java` — `@ConfigurationProperties(prefix = "app.cors")`, `allowedOrigins` 리스트 바인딩
+- `SecurityConfig`에서 `corsProperties.getAllowedOrigins()`로 동적 참조
+- `application.yml`에 기본값 (`http://localhost:5173`), `application-local.yml`에서 개발자별 origin 오버라이드
+- 리스트 오버라이드 시 **전체 교체** (append 아님) — local에서 오버라이드 시 기본값도 포함해야 함
+
+### Frontend (Vite)
+```
+frontend/.env.example    — 환경변수 목록 안내 (git 포함)
+frontend/.env            — 실제 값 (gitignored)
+```
+
+- `vite.config.js`에서 `loadEnv(mode, cwd, '')`로 `.env` 파일 로드 (세 번째 인자 `''`로 `VITE_` 접두사 없는 변수도 로드)
+- `ALLOWED_HOSTS` — Vite dev server 허용 호스트 (쉼표 구분, 예: `exam.crinity.com`)
+- `API_TARGET` — 백엔드 API 프록시 대상 (기본값: `http://localhost:8080`)
 
 ## LLM 채점 시스템
 
@@ -381,7 +398,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 ## 인증/권한 체계
 
 ### 관리자 인증 (Spring Security 세션 기반)
-- `SecurityConfig.java` — 필터 체인 + CORS (`allowCredentials: true`)
+- `SecurityConfig.java` — 필터 체인 + CORS (`CorsProperties`에서 허용 origin 주입, `allowCredentials: true`)
 - `Admin` 엔티티 + `AdminRepository` + `AdminUserDetailsService` (UserDetailsService 구현)
 - `AdminInitializer` — 앱 기동 시 `admins` 테이블 비어있으면 기본 계정 생성 (`admin/admin123`)
 - `AdminController` — 프로그래매틱 인증 (`/api/admin/login`, `/api/admin/logout`, `/api/admin/me`)
