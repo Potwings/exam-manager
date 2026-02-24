@@ -119,3 +119,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* prose 테이블: 컨텐츠 너비에 맞게 축소 */
+.prose table {
+  width: auto;
+}
+.prose th,
+.prose td {
+  padding-left: 0.75em;
+  padding-right: 0.75em;
+}
+
+/* 연속 테이블 가로 배치 */
+.prose .table-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5rem;
+  align-items: flex-start;
+}
