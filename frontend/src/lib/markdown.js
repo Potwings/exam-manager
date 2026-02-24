@@ -1,9 +1,29 @@
 import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js/lib/core'
+import java from 'highlight.js/lib/languages/java'
+import javascript from 'highlight.js/lib/languages/javascript'
+import python from 'highlight.js/lib/languages/python'
+import sql from 'highlight.js/lib/languages/sql'
+
+hljs.registerLanguage('java', java)
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('js', javascript)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('sql', sql)
 
 const md = new MarkdownIt({
   html: false,
   breaks: true,
-  linkify: false
+  linkify: false,
+  highlight(str, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return `<span class="code-lang-label">${lang}</span>` +
+          hljs.highlight(str, { language: lang }).value
+      } catch (_) {}
+    }
+    return ''
+  }
 })
 
 export function renderMarkdown(text) {
