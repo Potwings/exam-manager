@@ -28,112 +28,60 @@
     <p v-else-if="loadError" class="text-sm text-destructive">{{ loadError }}</p>
 
     <template v-else-if="result">
-      <Card v-for="s in result.submissions" :key="s.id">
-        <CardHeader class="pb-3">
-          <div class="flex items-center justify-between">
-            <CardTitle class="text-base">문제 {{ s.problemNumber }}</CardTitle>
-            <div class="flex items-center gap-2">
-              <Badge v-if="s.earnedScore == null" variant="outline" class="text-amber-600 border-amber-300">
-                <Loader2 class="h-3 w-3 animate-spin mr-1" /> 채점 중
-              </Badge>
-              <Badge v-else :variant="s.earnedScore >= s.maxScore ? 'default' : s.earnedScore > 0 ? 'secondary' : 'destructive'">
-                {{ s.earnedScore }} / {{ s.maxScore }}점
-              </Badge>
-              <Button
-                v-if="editingId !== s.id"
-                variant="ghost"
-                size="sm"
-                @click="startEdit(s)"
-              >
-                <Pencil class="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent class="space-y-3">
-          <div v-if="s.problemContent">
-            <p class="text-sm font-medium text-muted-foreground mb-1">문제</p>
-            <div v-if="s.problemContentType === 'MARKDOWN'" class="prose prose-sm dark:prose-invert max-w-none bg-muted rounded-md p-3" v-html="renderMarkdown(s.problemContent)" />
-            <pre v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ s.problemContent }}</pre>
-          </div>
-          <Separator v-if="s.problemContent" />
-          <div>
-            <p class="text-sm font-medium text-muted-foreground mb-1">제출 답안</p>
-            <pre v-if="!s.annotatedAnswer" class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ s.submittedAnswer || '(미작성)' }}</pre>
-            <div v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words font-mono">
-              <template v-for="(part, idx) in parseAnnotatedAnswer(s.annotatedAnswer)" :key="idx">
-                <span
-                  v-if="part.status === 'correct'"
-                  class="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded px-0.5"
-                >{{ part.text }}</span>
-                <span
-                  v-else-if="part.status === 'incorrect'"
-                  class="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded px-0.5"
-                >{{ part.text }}</span>
-                <span
-                  v-else-if="part.status === 'partial'"
-                  class="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded px-0.5"
-                >{{ part.text }}</span>
-                <span v-else>{{ part.text }}</span>
-              </template>
-            </div>
-          </div>
-          <Separator />
-
-          <!-- 읽기 모드 -->
-          <template v-if="editingId !== s.id">
+      <template v-for="item in groupedSubmissions" :key="item.key">
+        <!-- 그룹 문제: 부모 지문 + 하위 제출 결과 -->
+        <Card v-if="item.type === 'group'">
+          <CardHeader class="pb-3">
+            <CardTitle class="text-base">
+              문제 {{ item.parentProblemNumber }}
+              <Badge variant="secondary" class="ml-2 text-xs">그룹</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <!-- 부모 지문 -->
             <div>
-              <p class="text-sm font-medium text-muted-foreground mb-1">채점 사유</p>
-              <p v-if="s.earnedScore == null" class="text-sm text-amber-600 flex items-center gap-1">
-                <Loader2 class="h-3 w-3 animate-spin" /> 채점이 완료되면 피드백이 표시됩니다.
-              </p>
-              <p v-else class="text-sm leading-relaxed">{{ s.feedback || '(피드백 없음)' }}</p>
+              <p class="text-sm font-medium text-muted-foreground mb-1">공통 지문</p>
+              <div v-if="item.parentProblemContentType === 'MARKDOWN'" class="prose prose-sm dark:prose-invert max-w-none bg-muted rounded-md p-3" v-html="renderMarkdown(item.parentProblemContent)" />
+              <pre v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ item.parentProblemContent }}</pre>
             </div>
-          </template>
 
-          <!-- 편집 모드 -->
-          <template v-else>
-            <div class="space-y-3">
-              <div>
-                <label class="text-sm font-medium text-muted-foreground mb-1 block">득점 (최대 {{ s.maxScore }}점)</label>
-                <Input
-                  type="number"
-                  v-model.number="editForm.earnedScore"
-                  :min="0"
-                  :max="s.maxScore"
-                  class="w-32"
-                />
-              </div>
-              <div>
-                <label class="text-sm font-medium text-muted-foreground mb-1 block">채점 사유</label>
-                <Textarea
-                  v-model="editForm.feedback"
-                  rows="3"
-                />
-              </div>
-              <div>
-                <label class="text-sm font-medium text-muted-foreground mb-1 block">답안 서식 (색상 마커)</label>
-                <p class="text-xs text-muted-foreground mb-2">텍스트를 선택한 후 버튼을 클릭하여 마커를 적용하세요</p>
-                <div class="flex items-center gap-2 mb-2">
-                  <span class="text-xs text-muted-foreground">마커:</span>
-                  <Button size="sm" variant="outline" @click="applyMarker('정답')"
-                    class="h-7 text-xs bg-green-100/50 hover:bg-green-200/50 text-green-800 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-200 border-green-300 dark:border-green-700">정답</Button>
-                  <Button size="sm" variant="outline" @click="applyMarker('오답')"
-                    class="h-7 text-xs bg-red-100/50 hover:bg-red-200/50 text-red-800 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-200 border-red-300 dark:border-red-700">오답</Button>
-                  <Button size="sm" variant="outline" @click="applyMarker('부분')"
-                    class="h-7 text-xs bg-orange-100/50 hover:bg-orange-200/50 text-orange-800 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 dark:text-orange-200 border-orange-300 dark:border-orange-700">부분</Button>
+            <!-- 하위 문제 제출 결과 -->
+            <div class="ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-4 space-y-4">
+              <div v-for="s in item.children" :key="s.id" class="border rounded-md p-3 space-y-3 bg-muted/10">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium">Q{{ item.parentProblemNumber }}-{{ s.problemNumber }}</span>
+                  <div class="flex items-center gap-2">
+                    <Badge v-if="s.earnedScore == null" variant="outline" class="text-amber-600 border-amber-300">
+                      <Loader2 class="h-3 w-3 animate-spin mr-1" /> 채점 중
+                    </Badge>
+                    <Badge v-else :variant="s.earnedScore >= s.maxScore ? 'default' : s.earnedScore > 0 ? 'secondary' : 'destructive'">
+                      {{ s.earnedScore }} / {{ s.maxScore }}점
+                    </Badge>
+                    <Button
+                      v-if="editingId !== s.id"
+                      variant="ghost"
+                      size="sm"
+                      @click="startEdit(s)"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-                <Textarea
-                  id="annotated-answer-textarea"
-                  v-model="editForm.annotatedAnswer"
-                  rows="4"
-                  class="font-mono text-xs"
-                  :placeholder="s.submittedAnswer || ''"
-                />
-                <div v-if="editForm.annotatedAnswer" class="mt-2">
-                  <p class="text-xs text-muted-foreground mb-1">미리보기</p>
-                  <div class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words font-mono">
-                    <template v-for="(part, idx) in parseAnnotatedAnswer(editForm.annotatedAnswer)" :key="idx">
+
+                <!-- 하위 문제 내용 -->
+                <div v-if="s.problemContent">
+                  <p class="text-sm font-medium text-muted-foreground mb-1">문제</p>
+                  <div v-if="s.problemContentType === 'MARKDOWN'" class="prose prose-sm dark:prose-invert max-w-none bg-muted rounded-md p-3" v-html="renderMarkdown(s.problemContent)" />
+                  <pre v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ s.problemContent }}</pre>
+                </div>
+                <Separator v-if="s.problemContent" />
+
+                <!-- 제출 답안 -->
+                <div>
+                  <p class="text-sm font-medium text-muted-foreground mb-1">제출 답안</p>
+                  <pre v-if="!s.annotatedAnswer" class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ s.submittedAnswer || '(미작성)' }}</pre>
+                  <div v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words font-mono">
+                    <template v-for="(part, idx) in parseAnnotatedAnswer(s.annotatedAnswer)" :key="idx">
                       <span v-if="part.status === 'correct'" class="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded px-0.5">{{ part.text }}</span>
                       <span v-else-if="part.status === 'incorrect'" class="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded px-0.5">{{ part.text }}</span>
                       <span v-else-if="part.status === 'partial'" class="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded px-0.5">{{ part.text }}</span>
@@ -141,26 +89,93 @@
                     </template>
                   </div>
                 </div>
+                <Separator />
+
+                <!-- 읽기/편집 모드 (하위 문제) -->
+                <template v-if="editingId !== s.id">
+                  <div>
+                    <p class="text-sm font-medium text-muted-foreground mb-1">채점 사유</p>
+                    <p v-if="s.earnedScore == null" class="text-sm text-amber-600 flex items-center gap-1">
+                      <Loader2 class="h-3 w-3 animate-spin" /> 채점이 완료되면 피드백이 표시됩니다.
+                    </p>
+                    <p v-else class="text-sm leading-relaxed">{{ s.feedback || '(피드백 없음)' }}</p>
+                  </div>
+                </template>
+                <template v-else>
+                  <EditForm :s="s" :editForm="editForm" :saving="saving" :editError="editError"
+                    @save="saveEdit(s)" @cancel="cancelEdit" @marker="applyMarker" />
+                </template>
               </div>
-              <div class="flex gap-2">
-                <Button size="sm" @click="saveEdit(s)" :disabled="saving">
-                  {{ saving ? '저장 중...' : '저장' }}
-                </Button>
-                <Button size="sm" variant="outline" @click="cancelEdit" :disabled="saving">
-                  취소
-                </Button>
-              </div>
-              <p v-if="editError" class="text-sm text-destructive">{{ editError }}</p>
             </div>
-          </template>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <!-- 독립 문제 -->
+        <Card v-else>
+          <CardHeader class="pb-3">
+            <div class="flex items-center justify-between">
+              <CardTitle class="text-base">문제 {{ item.submission.problemNumber }}</CardTitle>
+              <div class="flex items-center gap-2">
+                <Badge v-if="item.submission.earnedScore == null" variant="outline" class="text-amber-600 border-amber-300">
+                  <Loader2 class="h-3 w-3 animate-spin mr-1" /> 채점 중
+                </Badge>
+                <Badge v-else :variant="item.submission.earnedScore >= item.submission.maxScore ? 'default' : item.submission.earnedScore > 0 ? 'secondary' : 'destructive'">
+                  {{ item.submission.earnedScore }} / {{ item.submission.maxScore }}점
+                </Badge>
+                <Button
+                  v-if="editingId !== item.submission.id"
+                  variant="ghost"
+                  size="sm"
+                  @click="startEdit(item.submission)"
+                >
+                  <Pencil class="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent class="space-y-3">
+            <div v-if="item.submission.problemContent">
+              <p class="text-sm font-medium text-muted-foreground mb-1">문제</p>
+              <div v-if="item.submission.problemContentType === 'MARKDOWN'" class="prose prose-sm dark:prose-invert max-w-none bg-muted rounded-md p-3" v-html="renderMarkdown(item.submission.problemContent)" />
+              <pre v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ item.submission.problemContent }}</pre>
+            </div>
+            <Separator v-if="item.submission.problemContent" />
+            <div>
+              <p class="text-sm font-medium text-muted-foreground mb-1">제출 답안</p>
+              <pre v-if="!item.submission.annotatedAnswer" class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words">{{ item.submission.submittedAnswer || '(미작성)' }}</pre>
+              <div v-else class="text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words font-mono">
+                <template v-for="(part, idx) in parseAnnotatedAnswer(item.submission.annotatedAnswer)" :key="idx">
+                  <span v-if="part.status === 'correct'" class="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded px-0.5">{{ part.text }}</span>
+                  <span v-else-if="part.status === 'incorrect'" class="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded px-0.5">{{ part.text }}</span>
+                  <span v-else-if="part.status === 'partial'" class="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded px-0.5">{{ part.text }}</span>
+                  <span v-else>{{ part.text }}</span>
+                </template>
+              </div>
+            </div>
+            <Separator />
+
+            <template v-if="editingId !== item.submission.id">
+              <div>
+                <p class="text-sm font-medium text-muted-foreground mb-1">채점 사유</p>
+                <p v-if="item.submission.earnedScore == null" class="text-sm text-amber-600 flex items-center gap-1">
+                  <Loader2 class="h-3 w-3 animate-spin" /> 채점이 완료되면 피드백이 표시됩니다.
+                </p>
+                <p v-else class="text-sm leading-relaxed">{{ item.submission.feedback || '(피드백 없음)' }}</p>
+              </div>
+            </template>
+            <template v-else>
+              <EditForm :s="item.submission" :editForm="editForm" :saving="saving" :editError="editError"
+                @save="saveEdit(item.submission)" @cancel="cancelEdit" @marker="applyMarker" />
+            </template>
+          </CardContent>
+        </Card>
+      </template>
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { fetchResult, updateSubmission } from '@/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -171,6 +186,56 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Loader2, Pencil } from 'lucide-vue-next'
 import { renderMarkdown } from '@/lib/markdown.js'
+
+// 인라인 편집 폼 컴포넌트
+const EditForm = {
+  props: ['s', 'editForm', 'saving', 'editError'],
+  emits: ['save', 'cancel', 'marker'],
+  setup(props, { emit }) {
+    return () => h('div', { class: 'space-y-3' }, [
+      h('div', [
+        h('label', { class: 'text-sm font-medium text-muted-foreground mb-1 block' }, `득점 (최대 ${props.s.maxScore}점)`),
+        h(Input, { type: 'number', modelValue: props.editForm.earnedScore, 'onUpdate:modelValue': v => props.editForm.earnedScore = v, min: 0, max: props.s.maxScore, class: 'w-32' })
+      ]),
+      h('div', [
+        h('label', { class: 'text-sm font-medium text-muted-foreground mb-1 block' }, '채점 사유'),
+        h(Textarea, { modelValue: props.editForm.feedback, 'onUpdate:modelValue': v => props.editForm.feedback = v, rows: 3 })
+      ]),
+      h('div', [
+        h('label', { class: 'text-sm font-medium text-muted-foreground mb-1 block' }, '답안 서식 (색상 마커)'),
+        h('p', { class: 'text-xs text-muted-foreground mb-2' }, '텍스트를 선택한 후 버튼을 클릭하여 마커를 적용하세요'),
+        h('div', { class: 'flex items-center gap-2 mb-2' }, [
+          h('span', { class: 'text-xs text-muted-foreground' }, '마커:'),
+          h(Button, { size: 'sm', variant: 'outline', onClick: () => emit('marker', '정답'), class: 'h-7 text-xs bg-green-100/50 hover:bg-green-200/50 text-green-800 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:text-green-200 border-green-300 dark:border-green-700' }, () => '정답'),
+          h(Button, { size: 'sm', variant: 'outline', onClick: () => emit('marker', '오답'), class: 'h-7 text-xs bg-red-100/50 hover:bg-red-200/50 text-red-800 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-200 border-red-300 dark:border-red-700' }, () => '오답'),
+          h(Button, { size: 'sm', variant: 'outline', onClick: () => emit('marker', '부분'), class: 'h-7 text-xs bg-orange-100/50 hover:bg-orange-200/50 text-orange-800 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 dark:text-orange-200 border-orange-300 dark:border-orange-700' }, () => '부분')
+        ]),
+        h(Textarea, { id: 'annotated-answer-textarea', modelValue: props.editForm.annotatedAnswer, 'onUpdate:modelValue': v => props.editForm.annotatedAnswer = v, rows: 4, class: 'font-mono text-xs', placeholder: props.s.submittedAnswer || '' }),
+        props.editForm.annotatedAnswer
+          ? h('div', { class: 'mt-2' }, [
+              h('p', { class: 'text-xs text-muted-foreground mb-1' }, '미리보기'),
+              h('div', { class: 'text-sm bg-muted rounded-md p-3 whitespace-pre-wrap break-words font-mono' },
+                parseAnnotatedAnswer(props.editForm.annotatedAnswer).map((part, idx) =>
+                  h('span', {
+                    key: idx,
+                    class: part.status === 'correct' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded px-0.5'
+                      : part.status === 'incorrect' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded px-0.5'
+                      : part.status === 'partial' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded px-0.5'
+                      : ''
+                  }, part.text)
+                )
+              )
+            ])
+          : null
+      ]),
+      h('div', { class: 'flex gap-2' }, [
+        h(Button, { size: 'sm', onClick: () => emit('save'), disabled: props.saving }, () => props.saving ? '저장 중...' : '저장'),
+        h(Button, { size: 'sm', variant: 'outline', onClick: () => emit('cancel'), disabled: props.saving }, () => '취소')
+      ]),
+      props.editError ? h('p', { class: 'text-sm text-destructive' }, props.editError) : null
+    ])
+  }
+}
 
 const router = useRouter()
 const route = useRoute()
@@ -190,6 +255,36 @@ const editError = ref('')
 
 let pollingTimer = null
 
+// 제출 결과를 그룹핑: 독립 문제 vs 그룹 문제(부모 지문 + 하위 문제)
+const groupedSubmissions = computed(() => {
+  if (!result.value?.submissions) return []
+  const items = []
+  const groupMap = new Map()
+
+  for (const s of result.value.submissions) {
+    if (s.parentProblemId) {
+      if (!groupMap.has(s.parentProblemId)) {
+        const group = {
+          type: 'group',
+          key: `group-${s.parentProblemId}`,
+          parentProblemId: s.parentProblemId,
+          parentProblemNumber: s.parentProblemNumber,
+          parentProblemContent: s.parentProblemContent,
+          parentProblemContentType: s.parentProblemContentType,
+          children: []
+        }
+        groupMap.set(s.parentProblemId, group)
+        items.push(group)
+      }
+      groupMap.get(s.parentProblemId).children.push(s)
+    } else {
+      items.push({ type: 'single', key: `single-${s.id}`, submission: s })
+    }
+  }
+
+  return items
+})
+
 function applyMarker(type) {
   const textarea = document.getElementById('annotated-answer-textarea')
   if (!textarea) return
@@ -200,7 +295,6 @@ function applyMarker(type) {
 
   const selected = textarea.value.slice(start, end)
 
-  // 같은 마커 → 해제 (토글), 다른 마커 → 교체, 마커 없음 → 적용
   const sameMarkerRegex = new RegExp(`^\\[${type}\\]([\\s\\S]*)\\[\\/${type}\\]$`)
   const anyMarkerRegex = /^\[(정답|오답|부분)\]([\s\S]*)\[\/\1\]$/
   const sameMatch = selected.match(sameMarkerRegex)
@@ -208,13 +302,10 @@ function applyMarker(type) {
 
   let replacement
   if (sameMatch) {
-    // 같은 마커가 적용되어 있으면 해제 (내부 텍스트만 남김)
     replacement = sameMatch[1]
   } else if (anyMatch) {
-    // 다른 마커가 적용되어 있으면 교체 (기존 마커 제거 후 새 마커 적용)
     replacement = `[${type}]${anyMatch[2]}[/${type}]`
   } else {
-    // 마커 없으면 새로 적용
     replacement = `[${type}]${selected}[/${type}]`
   }
 
@@ -223,7 +314,6 @@ function applyMarker(type) {
   const success = document.execCommand('insertText', false, replacement)
 
   if (!success || textarea.value === editForm.annotatedAnswer) {
-    // execCommand 실패 시 수동 문자열 조합 폴백
     const before = textarea.value.slice(0, start)
     const after = textarea.value.slice(end)
     textarea.value = before + replacement + after
@@ -241,9 +331,6 @@ function parseAnnotatedAnswer(text) {
   if (!text) return []
   const parts = []
   const statusMap = { '정답': 'correct', '오답': 'incorrect', '부분': 'partial' }
-  // 닫는 태그가 있는 쌍과, 닫는 태그 없이 여는 태그만 있는 경우 모두 매칭
-  // 1) [정답]...[/정답] — 닫는 태그 있는 완전한 쌍
-  // 2) [정답]...(?=[오답]|[부분]|[정답]|$) — 닫는 태그 없이 다음 여는 태그 또는 끝까지
   const regex = /\[(정답|오답|부분)\]([\s\S]*?)(?:\[\/\1\]|(?=\[(?:정답|오답|부분)\])|$)/g
   let lastIndex = 0
   let match
@@ -301,8 +388,6 @@ function startEdit(s) {
   editingId.value = s.id
   editForm.earnedScore = s.earnedScore ?? 0
   editForm.feedback = s.feedback || ''
-  // annotatedAnswer가 비어있으면 원래 제출 답안을 기본값으로 채워서
-  // 관리자가 빈 상태에서 시작하지 않고 바로 마커를 적용할 수 있게 함
   editForm.annotatedAnswer = s.annotatedAnswer || s.submittedAnswer || ''
   editError.value = ''
 }
@@ -316,7 +401,6 @@ async function saveEdit(s) {
   saving.value = true
   editError.value = ''
 
-  // 득점 범위 검증 (0 ~ maxScore)
   const score = Number(editForm.earnedScore)
   if (isNaN(score) || score < 0 || score > s.maxScore) {
     editError.value = `득점은 0 이상 ${s.maxScore} 이하여야 합니다.`
@@ -332,13 +416,11 @@ async function saveEdit(s) {
       annotatedAnswer: editForm.annotatedAnswer || null
     })
 
-    // 로컬 데이터 반영
     const oldScore = s.earnedScore ?? 0
     s.earnedScore = editForm.earnedScore
     s.feedback = editForm.feedback
     s.annotatedAnswer = editForm.annotatedAnswer || null
 
-    // 총점 재계산
     result.value.totalScore += (editForm.earnedScore - oldScore)
 
     editingId.value = null

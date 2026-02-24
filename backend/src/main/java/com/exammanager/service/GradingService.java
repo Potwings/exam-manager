@@ -146,6 +146,13 @@ public class GradingService {
 
     private void gradeWithLlm(Submission submission, Answer answer) {
         String problemContent = submission.getProblem() != null ? submission.getProblem().getContent() : "";
+        // 자식 문제인 경우 부모 지문을 앞에 포함
+        if (submission.getProblem() != null && submission.getProblem().getParent() != null) {
+            String parentContent = submission.getProblem().getParent().getContent();
+            if (parentContent != null && !parentContent.isBlank()) {
+                problemContent = "[보기]\n" + parentContent + "\n\n[문제]\n" + problemContent;
+            }
+        }
         int maxScore = answer.getScore();
         String answerContent = answer.getContent() != null ? answer.getContent() : "";
         String submittedAnswer = submission.getSubmittedAnswer() != null ? submission.getSubmittedAnswer() : "";

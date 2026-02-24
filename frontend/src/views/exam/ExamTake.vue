@@ -77,50 +77,106 @@
         </div>
       </div>
 
-      <Card v-for="problem in examStore.problems" :key="problem.id" class="relative">
-        <CardHeader>
-          <CardTitle class="text-base">
-            <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-3">
-          <!-- 문제 내용: contentType에 따라 렌더링 -->
-          <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(problem.content)"></div>
-          <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ problem.content }}</pre>
+      <template v-for="problem in examStore.problems" :key="problem.id">
+        <!-- 그룹 문제: 부모 지문 + 하위 문제들 -->
+        <Card v-if="problem.children && problem.children.length > 0">
+          <CardHeader>
+            <CardTitle class="text-base">
+              <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
+              <Badge variant="secondary" class="text-xs">그룹</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <!-- 부모 지문 -->
+            <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(problem.content)"></div>
+            <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ problem.content }}</pre>
 
-          <!-- 답안 입력: 코드 문제면 Monaco, 아니면 Textarea -->
-          <div v-if="isCodeProblem(problem)" class="border rounded-md overflow-hidden">
-            <div class="flex items-center justify-between bg-muted px-3 py-1.5">
-              <span class="text-xs text-muted-foreground font-mono">Code Editor</span>
-              <select
-                v-model="languages[problem.id]"
-                class="text-xs bg-transparent border rounded px-1.5 py-0.5"
-              >
-                <option value="java">Java</option>
-                <option value="javascript">JavaScript</option>
-                <option value="python">Python</option>
-                <option value="sql">SQL</option>
-              </select>
-            </div>
-            <div style="height: 200px">
-              <vue-monaco-editor
-                :value="answers[problem.id] || ''"
-                @change="(val) => answers[problem.id] = val"
-                :language="languages[problem.id] || 'java'"
-                theme="vs-dark"
-                :options="editorOptions"
-              />
-            </div>
-          </div>
+            <!-- 하위 문제들 -->
+            <div class="ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-4 space-y-4">
+              <div v-for="child in problem.children" :key="child.id" class="space-y-2">
+                <p class="text-sm font-medium">Q{{ problem.problemNumber }}-{{ child.problemNumber }}</p>
+                <div v-if="child.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(child.content)"></div>
+                <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ child.content }}</pre>
 
-          <Textarea
-            v-else
-            v-model="answers[problem.id]"
-            placeholder="답변을 작성하세요..."
-            rows="3"
-          />
-        </CardContent>
-      </Card>
+                <!-- 답안 입력 -->
+                <div v-if="isCodeProblem(child, problem)" class="border rounded-md overflow-hidden">
+                  <div class="flex items-center justify-between bg-muted px-3 py-1.5">
+                    <span class="text-xs text-muted-foreground font-mono">Code Editor</span>
+                    <select
+                      v-model="languages[child.id]"
+                      class="text-xs bg-transparent border rounded px-1.5 py-0.5"
+                    >
+                      <option value="java">Java</option>
+                      <option value="javascript">JavaScript</option>
+                      <option value="python">Python</option>
+                      <option value="sql">SQL</option>
+                    </select>
+                  </div>
+                  <div style="height: 200px">
+                    <vue-monaco-editor
+                      :value="answers[child.id] || ''"
+                      @change="(val) => answers[child.id] = val"
+                      :language="languages[child.id] || 'java'"
+                      theme="vs-dark"
+                      :options="editorOptions"
+                    />
+                  </div>
+                </div>
+                <Textarea
+                  v-else
+                  v-model="answers[child.id]"
+                  placeholder="답변을 작성하세요..."
+                  rows="3"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <!-- 독립 문제 -->
+        <Card v-else>
+          <CardHeader>
+            <CardTitle class="text-base">
+              <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-3">
+            <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(problem.content)"></div>
+            <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ problem.content }}</pre>
+
+            <div v-if="isCodeProblem(problem)" class="border rounded-md overflow-hidden">
+              <div class="flex items-center justify-between bg-muted px-3 py-1.5">
+                <span class="text-xs text-muted-foreground font-mono">Code Editor</span>
+                <select
+                  v-model="languages[problem.id]"
+                  class="text-xs bg-transparent border rounded px-1.5 py-0.5"
+                >
+                  <option value="java">Java</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="python">Python</option>
+                  <option value="sql">SQL</option>
+                </select>
+              </div>
+              <div style="height: 200px">
+                <vue-monaco-editor
+                  :value="answers[problem.id] || ''"
+                  @change="(val) => answers[problem.id] = val"
+                  :language="languages[problem.id] || 'java'"
+                  theme="vs-dark"
+                  :options="editorOptions"
+                />
+              </div>
+            </div>
+
+            <Textarea
+              v-else
+              v-model="answers[problem.id]"
+              placeholder="답변을 작성하세요..."
+              rows="3"
+            />
+          </CardContent>
+        </Card>
+      </template>
 
       <div v-if="examStore.problems.length === 0" class="text-center py-12 text-muted-foreground">
         문제를 불러오는 중...
@@ -179,6 +235,19 @@ const editorOptions = {
   wordWrap: 'on'
 }
 
+// 답안 입력 가능한 문제만 추출 (독립 문제 + 그룹의 하위 문제)
+const answerableProblems = computed(() => {
+  const result = []
+  for (const p of examStore.problems) {
+    if (p.children && p.children.length > 0) {
+      result.push(...p.children)
+    } else {
+      result.push(p)
+    }
+  }
+  return result
+})
+
 // MM:SS 포맷. 시간 제한 없으면 null 반환
 const formattedTime = computed(() => {
   if (remainingSeconds.value === null) return null
@@ -190,7 +259,6 @@ const formattedTime = computed(() => {
 // 전체 시간(초) — 프로그레스 바 계산용
 const totalSeconds = ref(null)
 
-// 타이머 배경 스타일: 평소 진한 배경, 5분 이하 amber, 1분 이하 red
 const timerBgClass = computed(() => {
   if (remainingSeconds.value === null) return ''
   if (remainingSeconds.value <= 60) return 'bg-red-50/95 border-red-400 text-red-700 shadow-red-200/50'
@@ -198,21 +266,18 @@ const timerBgClass = computed(() => {
   return 'bg-slate-900/95 border-slate-700 text-white shadow-slate-400/30'
 })
 
-// 프로그레스 바 트랙(배경) 색상
 const progressTrackClass = computed(() => {
   if (remainingSeconds.value <= 60) return 'bg-red-200'
   if (remainingSeconds.value <= 300) return 'bg-amber-200'
   return 'bg-slate-700'
 })
 
-// 프로그레스 바 색상
 const progressBarClass = computed(() => {
   if (remainingSeconds.value <= 60) return 'bg-red-500'
   if (remainingSeconds.value <= 300) return 'bg-amber-500'
   return 'bg-emerald-400'
 })
 
-// 남은 시간 비율 (%)
 const progressPercent = computed(() => {
   if (totalSeconds.value === null || totalSeconds.value === 0) return 100
   return Math.max(0, (remainingSeconds.value / totalSeconds.value) * 100)
@@ -239,12 +304,35 @@ function stopTimer() {
   }
 }
 
-function isCodeProblem(problem) {
-  return CODE_PROBLEM_NUMBERS.includes(problem.problemNumber)
+function isCodeProblem(problem, parent) {
+  // 하위 문제인 경우 부모 번호 기준으로 판별
+  const num = parent ? parent.problemNumber : problem.problemNumber
+  return CODE_PROBLEM_NUMBERS.includes(num)
 }
 
 function renderMd(text) {
   return renderMarkdown(text)
+}
+
+function initLanguages(problems) {
+  for (const p of problems) {
+    if (p.children && p.children.length > 0) {
+      // 그룹 문제의 하위 문제들
+      for (const child of p.children) {
+        if (isCodeProblem(child, p)) {
+          if (p.problemNumber === 13) languages[child.id] = 'sql'
+          else if (p.problemNumber === 11) languages[child.id] = 'javascript'
+          else languages[child.id] = 'java'
+        }
+      }
+    } else {
+      if (isCodeProblem(p)) {
+        if (p.problemNumber === 13) languages[p.id] = 'sql'
+        else if (p.problemNumber === 11) languages[p.id] = 'javascript'
+        else languages[p.id] = 'java'
+      }
+    }
+  }
 }
 
 onMounted(async () => {
@@ -260,7 +348,6 @@ onMounted(async () => {
   }
 
   try {
-    // 공개 API(loadActiveExam)로 시험 데이터 로드
     if (!examStore.activeExam || String(examStore.activeExam.id) !== String(examId)) {
       await examStore.loadActiveExam()
     }
@@ -278,17 +365,7 @@ onMounted(async () => {
     return
   }
 
-  examStore.problems.forEach(p => {
-    if (isCodeProblem(p)) {
-      if (p.problemNumber === 13) {
-        languages[p.id] = 'sql'
-      } else if (p.problemNumber === 11) {
-        languages[p.id] = 'javascript'
-      } else {
-        languages[p.id] = 'java'
-      }
-    }
-  })
+  initLanguages(examStore.problems)
 
   // localStorage에서 이전 답안 복원 (새로고침 대응)
   const storageKey = `exam_${examId}_answers`
@@ -305,7 +382,6 @@ onMounted(async () => {
       const { data } = await createExamSession(authStore.examinee.id, examId)
       if (data.remainingSeconds !== null && data.remainingSeconds !== undefined) {
         if (data.remainingSeconds <= 0) {
-          // 이미 시간 초과: 즉시 자동 제출
           timeExpired.value = true
           handleSubmit()
         } else {
@@ -403,7 +479,8 @@ async function handleSubmit() {
   loading.value = true
   stopTimer()
   try {
-    const answerList = examStore.problems.map(p => ({
+    // 답안 입력 가능한 문제만 제출 (독립 문제 + 그룹 하위 문제)
+    const answerList = answerableProblems.value.map(p => ({
       problemId: p.id,
       answer: answers[p.id] || ''
     }))
@@ -415,7 +492,6 @@ async function handleSubmit() {
     )
 
     submitted.value = true
-    // 제출 성공 시 localStorage 정리
     localStorage.removeItem(`exam_${route.params.examId}_answers`)
     authStore.clear()
   } catch (e) {
@@ -423,13 +499,11 @@ async function handleSubmit() {
       alert('이미 응시 완료한 시험입니다.')
       router.push('/exam/login')
     } else if (e.response?.status === 403) {
-      // 서버 측에서 시간 초과 판정 — 세션 데이터 정리
       localStorage.removeItem(`exam_${route.params.examId}_answers`)
       authStore.clear()
       timeExpired.value = true
       submitted.value = true
     } else {
-      // 시간 만료로 인한 자동 제출 실패 시에도 완료 처리 (사용자 혼란 방지)
       if (timeExpired.value) {
         localStorage.removeItem(`exam_${route.params.examId}_answers`)
         authStore.clear()

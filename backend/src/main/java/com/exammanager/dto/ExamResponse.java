@@ -23,7 +23,7 @@ public class ExamResponse {
         return ExamResponse.builder()
                 .id(exam.getId())
                 .title(exam.getTitle())
-                .problemCount(exam.getProblems().size())
+                .problemCount((int) exam.getProblems().stream().filter(p -> p.getParent() == null).count())
                 .totalScore(total)
                 .timeLimit(exam.getTimeLimit())
                 .active(exam.getActive())

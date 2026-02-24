@@ -34,31 +34,71 @@
     </div>
 
     <!-- 문제 목록 -->
-    <Card v-for="problem in exam?.problems" :key="problem.id">
-      <CardHeader>
-        <div class="flex items-center justify-between">
-          <CardTitle class="text-base">
-            <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
-            <Badge variant="secondary" class="text-xs">{{ problem.score }}점</Badge>
-          </CardTitle>
-          <Badge v-if="problem.contentType === 'MARKDOWN'" variant="outline" class="text-xs">마크다운</Badge>
-        </div>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <!-- 문제 내용 -->
-        <div>
-          <p class="text-sm font-medium text-muted-foreground mb-1">문제 내용</p>
-          <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert border rounded-md p-3 bg-muted/30" v-html="renderMd(problem.content)"></div>
-          <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed border rounded-md p-3 bg-muted/30">{{ problem.content }}</pre>
-        </div>
+    <template v-for="problem in exam?.problems" :key="problem.id">
+      <!-- 그룹 문제 -->
+      <Card v-if="problem.children && problem.children.length > 0">
+        <CardHeader>
+          <div class="flex items-center justify-between">
+            <CardTitle class="text-base">
+              <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
+              <Badge variant="secondary" class="text-xs">그룹</Badge>
+            </CardTitle>
+            <Badge v-if="problem.contentType === 'MARKDOWN'" variant="outline" class="text-xs">마크다운</Badge>
+          </div>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <!-- 부모 지문 -->
+          <div>
+            <p class="text-sm font-medium text-muted-foreground mb-1">공통 지문</p>
+            <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert border rounded-md p-3 bg-muted/30" v-html="renderMd(problem.content)"></div>
+            <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed border rounded-md p-3 bg-muted/30">{{ problem.content }}</pre>
+          </div>
 
-        <!-- 채점 기준 -->
-        <div>
-          <p class="text-sm font-medium text-muted-foreground mb-1">채점 기준</p>
-          <pre class="whitespace-pre-wrap text-sm leading-relaxed border rounded-md p-3 bg-muted/30">{{ problem.answerContent }}</pre>
-        </div>
-      </CardContent>
-    </Card>
+          <!-- 하위 문제들 -->
+          <div class="ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-4 space-y-4">
+            <div v-for="child in problem.children" :key="child.id" class="border rounded-md p-3 space-y-3 bg-muted/10">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">Q{{ problem.problemNumber }}-{{ child.problemNumber }}</span>
+                <Badge variant="secondary" class="text-xs">{{ child.score }}점</Badge>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-muted-foreground mb-1">문제 내용</p>
+                <div v-if="child.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert border rounded-md p-3 bg-muted/30" v-html="renderMd(child.content)"></div>
+                <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed border rounded-md p-3 bg-muted/30">{{ child.content }}</pre>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-muted-foreground mb-1">채점 기준</p>
+                <pre class="whitespace-pre-wrap text-sm leading-relaxed border rounded-md p-3 bg-muted/30">{{ child.answerContent }}</pre>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- 독립 문제 -->
+      <Card v-else>
+        <CardHeader>
+          <div class="flex items-center justify-between">
+            <CardTitle class="text-base">
+              <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
+              <Badge variant="secondary" class="text-xs">{{ problem.score }}점</Badge>
+            </CardTitle>
+            <Badge v-if="problem.contentType === 'MARKDOWN'" variant="outline" class="text-xs">마크다운</Badge>
+          </div>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div>
+            <p class="text-sm font-medium text-muted-foreground mb-1">문제 내용</p>
+            <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert border rounded-md p-3 bg-muted/30" v-html="renderMd(problem.content)"></div>
+            <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed border rounded-md p-3 bg-muted/30">{{ problem.content }}</pre>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-muted-foreground mb-1">채점 기준</p>
+            <pre class="whitespace-pre-wrap text-sm leading-relaxed border rounded-md p-3 bg-muted/30">{{ problem.answerContent }}</pre>
+          </div>
+        </CardContent>
+      </Card>
+    </template>
 
     <p v-if="loadError" class="text-sm text-destructive">{{ loadError }}</p>
   </div>
