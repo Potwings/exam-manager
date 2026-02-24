@@ -50,7 +50,7 @@
           </div>
           <div class="flex items-end gap-3 shrink-0">
             <!-- 관리자 호출 -->
-            <Button variant="destructive" size="sm" @click="handleCallAdmin" :disabled="callCooldown > 0" class="text-xs h-8 px-3 mb-1">
+            <Button variant="destructive" size="sm" @click="handleCallAdmin" :disabled="callCooldown > 0 || isCallingAdmin" class="text-xs h-8 px-3 mb-1">
               {{ callCooldown > 0 ? `호출 (${callCooldown}초)` : '관리자 호출' }}
             </Button>
             <!-- 타이머 위젯 -->
@@ -160,6 +160,7 @@ const submitted = ref(false)
 const timeExpired = ref(false)
 const sessionError = ref(false)
 const callCooldown = ref(0)
+const isCallingAdmin = ref(false)
 let callCooldownTimer = null
 
 // 타이머 관련 상태
@@ -368,8 +369,9 @@ onUnmounted(() => {
 })
 
 async function handleCallAdmin() {
-  if (callCooldown.value > 0 || !authStore.examinee) return
+  if (callCooldown.value > 0 || isCallingAdmin.value || !authStore.examinee) return
 
+  isCallingAdmin.value = true
   try {
     await callAdmin(
       authStore.examinee.id,
@@ -387,6 +389,8 @@ async function handleCallAdmin() {
     }, 1000)
   } catch {
     alert('관리자 호출에 실패했습니다. 잠시 후 다시 시도해주세요.')
+  } finally {
+    isCallingAdmin.value = false
   }
 }
 
