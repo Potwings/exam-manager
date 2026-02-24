@@ -1,10 +1,12 @@
 <script setup>
 import { Toaster as Sonner } from 'vue-sonner'
+import 'vue-sonner/style.css'
 </script>
 
 <template>
   <Sonner
     class="toaster group"
+    rich-colors
     :toast-options="{
       classes: {
         toast: 'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
