@@ -53,17 +53,19 @@
                   <Label :for="'type-md-' + p.id" class="text-xs font-normal cursor-pointer">마크다운</Label>
                 </div>
               </RadioGroup>
-              <button
+              <Button
                 type="button"
-                class="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs transition-colors"
+                variant="outline"
+                size="sm"
+                class="h-6 px-2 text-xs gap-1"
                 :class="p.isGroup
                   ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-200'
-                  : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'"
+                  : ''"
                 @click="toggleGroup(p)"
               >
                 <Layers class="h-3 w-3" />
                 그룹 문제
-              </button>
+              </Button>
             </div>
             <div class="flex items-center gap-2">
               <!-- 독립 문제일 때만 배점 표시 -->

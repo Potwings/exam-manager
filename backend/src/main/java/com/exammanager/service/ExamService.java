@@ -148,9 +148,13 @@ public class ExamService {
 
         // answerContent가 있는 경우에만 Answer 생성 (지문 전용 부모는 스킵)
         if (pi.getAnswerContent() != null && !pi.getAnswerContent().isBlank()) {
+            if (pi.getScore() == null || pi.getScore() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "문제 " + pi.getProblemNumber() + "번의 배점은 1점 이상이어야 합니다.");
+            }
             Answer answer = Answer.builder()
                     .content(pi.getAnswerContent())
-                    .score(pi.getScore() != null ? pi.getScore() : 0)
+                    .score(pi.getScore())
                     .problem(problem)
                     .build();
             problem.setAnswer(answer);
