@@ -27,9 +27,11 @@ import java.util.List;
 public class SecurityConfig {
 
     private final AdminRepository adminRepository;
+    private final CorsProperties corsProperties;
 
-    public SecurityConfig(AdminRepository adminRepository) {
+    public SecurityConfig(AdminRepository adminRepository, CorsProperties corsProperties) {
         this.adminRepository = adminRepository;
+        this.corsProperties = corsProperties;
     }
 
     @Bean
@@ -73,7 +75,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedOrigins(corsProperties.getAllowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
         config.setAllowedHeaders(List.of("*"));
         // 세션 쿠키(JSESSIONID) 전송을 허용하기 위해 credentials를 true로 설정
