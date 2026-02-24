@@ -66,6 +66,20 @@
                 <Layers class="h-3 w-3" />
                 그룹 문제
               </Button>
+              <Button
+                v-if="!p.isGroup"
+                type="button"
+                variant="outline"
+                size="sm"
+                class="h-6 px-2 text-xs gap-1"
+                :class="p.codeEditor
+                  ? 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-200'
+                  : ''"
+                @click="p.codeEditor = !p.codeEditor"
+              >
+                <Code class="h-3 w-3" />
+                코드 에디터
+              </Button>
             </div>
             <div class="flex items-center gap-2">
               <!-- 독립 문제일 때만 배점 표시 -->
@@ -177,6 +191,19 @@
                       <Label :for="'type-md-' + child.id" class="text-xs font-normal cursor-pointer">마크다운</Label>
                     </div>
                   </RadioGroup>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="h-6 px-2 text-xs gap-1"
+                    :class="child.codeEditor
+                      ? 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-200'
+                      : ''"
+                    @click="child.codeEditor = !child.codeEditor"
+                  >
+                    <Code class="h-3 w-3" />
+                    코드 에디터
+                  </Button>
                 </div>
                 <div class="flex items-center gap-2">
                   <div class="flex items-center gap-1">
@@ -301,7 +328,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Trash2, Plus, ChevronDown, Sparkles, Layers } from 'lucide-vue-next'
+import { Trash2, Plus, ChevronDown, Sparkles, Layers, Code } from 'lucide-vue-next'
 import AiAssistDialog from '@/components/AiAssistDialog.vue'
 import { checkAiStatus, fetchExam } from '@/api'
 
@@ -346,6 +373,7 @@ onMounted(async () => {
           problemNumber: p.problemNumber,
           content: p.content || '',
           contentType: p.contentType || 'TEXT',
+          codeEditor: !!p.codeEditor,
           answerContent: p.answerContent || '',
           score: p.score || 5,
           isGroup: hasChildren,
@@ -355,6 +383,7 @@ onMounted(async () => {
                 problemNumber: c.problemNumber,
                 content: c.content || '',
                 contentType: c.contentType || 'TEXT',
+                codeEditor: !!c.codeEditor,
                 answerContent: c.answerContent || '',
                 score: c.score || 5
               }))
@@ -422,11 +451,11 @@ function generateId() {
 }
 
 function makeProblem(num) {
-  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', answerContent: '', score: 5, isGroup: false, children: [] }
+  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', codeEditor: false, answerContent: '', score: 5, isGroup: false, children: [] }
 }
 
 function makeChildProblem(num) {
-  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', answerContent: '', score: 5 }
+  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', codeEditor: false, answerContent: '', score: 5 }
 }
 
 function addProblem() {
@@ -478,16 +507,19 @@ async function handleSubmit() {
       const base = {
         problemNumber: p.problemNumber,
         content: p.content.trim(),
-        contentType: p.contentType
+        contentType: p.contentType,
+        codeEditor: !!p.codeEditor
       }
       if (p.isGroup) {
         // 그룹 문제: answerContent/score 없음, children 포함
         base.answerContent = null
         base.score = null
+        base.codeEditor = false  // 그룹 부모는 코드 에디터 불필요
         base.children = p.children.map(c => ({
           problemNumber: c.problemNumber,
           content: c.content.trim(),
           contentType: c.contentType,
+          codeEditor: !!c.codeEditor,
           answerContent: c.answerContent.trim(),
           score: c.score
         }))

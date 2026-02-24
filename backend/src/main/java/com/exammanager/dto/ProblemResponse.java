@@ -12,6 +12,7 @@ public class ProblemResponse {
     private Integer problemNumber;
     private String content;
     private String contentType;
+    private Boolean codeEditor;
     private String answerContent;
     private Integer score;
     private List<ProblemResponse> children;
@@ -25,7 +26,8 @@ public class ProblemResponse {
                 .id(problem.getId())
                 .problemNumber(problem.getProblemNumber())
                 .content(problem.getContent())
-                .contentType(problem.getContentType());
+                .contentType(problem.getContentType())
+                .codeEditor(Boolean.TRUE.equals(problem.getCodeEditor()));
 
         if (includeAnswer && problem.getAnswer() != null) {
             builder.answerContent(problem.getAnswer().getContent())

@@ -23,6 +23,9 @@ public class Problem {
     @Builder.Default
     private String contentType = "TEXT";
 
+    @Builder.Default
+    private Boolean codeEditor = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_id")
     private Exam exam;

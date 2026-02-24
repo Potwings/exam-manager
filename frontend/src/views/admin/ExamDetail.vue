@@ -47,7 +47,7 @@
           </div>
         </CardHeader>
         <CardContent class="space-y-4">
-          <!-- 부모 지문 -->
+          <!-- 부모 지문 (그룹 문제) -->
           <div>
             <p class="text-sm font-medium text-muted-foreground mb-1">공통 지문</p>
             <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert border rounded-md p-3 bg-muted/30" v-html="renderMd(problem.content)"></div>
@@ -59,7 +59,10 @@
             <div v-for="child in problem.children" :key="child.id" class="border rounded-md p-3 space-y-3 bg-muted/10">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium">Q{{ problem.problemNumber }}-{{ child.problemNumber }}</span>
-                <Badge variant="secondary" class="text-xs">{{ child.score }}점</Badge>
+                <div class="flex items-center gap-1">
+                  <Badge variant="secondary" class="text-xs">{{ child.score }}점</Badge>
+                  <Badge v-if="child.codeEditor" variant="outline" class="text-xs text-emerald-700 border-emerald-300 dark:text-emerald-300 dark:border-emerald-700">코드 에디터</Badge>
+                </div>
               </div>
               <div>
                 <p class="text-sm font-medium text-muted-foreground mb-1">문제 내용</p>
@@ -82,6 +85,7 @@
             <CardTitle class="text-base">
               <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
               <Badge variant="secondary" class="text-xs">{{ problem.score }}점</Badge>
+              <Badge v-if="problem.codeEditor" variant="outline" class="text-xs ml-1 text-emerald-700 border-emerald-300 dark:text-emerald-300 dark:border-emerald-700">코드 에디터</Badge>
             </CardTitle>
             <Badge v-if="problem.contentType === 'MARKDOWN'" variant="outline" class="text-xs">마크다운</Badge>
           </div>

@@ -143,6 +143,7 @@ public class ExamService {
                 .problemNumber(pi.getProblemNumber())
                 .content(pi.getContent())
                 .contentType(pi.getContentType() != null ? pi.getContentType() : "TEXT")
+                .codeEditor(pi.isCodeEditor())
                 .exam(exam)
                 .build();
 
