@@ -342,7 +342,7 @@ onMounted(async () => {
       problemInputs.value = data.problems.map(p => {
         const hasChildren = p.children && p.children.length > 0
         return {
-          id: crypto.randomUUID(),
+          id: generateId(),
           problemNumber: p.problemNumber,
           content: p.content || '',
           contentType: p.contentType || 'TEXT',
@@ -351,7 +351,7 @@ onMounted(async () => {
           isGroup: hasChildren,
           children: hasChildren
             ? p.children.map(c => ({
-                id: crypto.randomUUID(),
+                id: generateId(),
                 problemNumber: c.problemNumber,
                 content: c.content || '',
                 contentType: c.contentType || 'TEXT',
@@ -414,12 +414,19 @@ const helpPreview = computed(() => renderMarkdown(
   '**굵은 글씨**\n*기울임*\n\n| 열1 | 열2 | 열3 |\n|-----|-----|-----|\n| A   | B   | C   |\n\n```java\npublic void main() {}\n```\n\n- 항목 1\n- 항목 2'
 ))
 
+function generateId() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
 function makeProblem(num) {
-  return { id: crypto.randomUUID(), problemNumber: num, content: '', contentType: 'TEXT', answerContent: '', score: 5, isGroup: false, children: [] }
+  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', answerContent: '', score: 5, isGroup: false, children: [] }
 }
 
 function makeChildProblem(num) {
-  return { id: crypto.randomUUID(), problemNumber: num, content: '', contentType: 'TEXT', answerContent: '', score: 5 }
+  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', answerContent: '', score: 5 }
 }
 
 function addProblem() {
