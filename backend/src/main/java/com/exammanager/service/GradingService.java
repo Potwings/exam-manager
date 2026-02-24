@@ -1,7 +1,9 @@
 package com.exammanager.service;
 
 import com.exammanager.entity.Answer;
+import com.exammanager.entity.Examinee;
 import com.exammanager.entity.Submission;
+import com.exammanager.repository.ExamineeRepository;
 import com.exammanager.repository.SubmissionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,8 @@ public class GradingService {
 
     private final OllamaClient ollamaClient;
     private final SubmissionRepository submissionRepository;
+    private final NotificationService notificationService;
+    private final ExamineeRepository examineeRepository;
 
     private static final String SYSTEM_PROMPT = """
             당신은 기술 면접 필기시험의 엄격한 채점관입니다. 수험자의 답안을 채점 기준에 따라 공정하고 엄격하게 채점하세요.
@@ -119,6 +123,25 @@ public class GradingService {
         }
 
         log.info("비동기 채점 완료 - examineeId: {}, examId: {}", examineeId, examId);
+
+        // 채점 완료 알림 전송
+        try {
+            int totalScore = submissions.stream()
+                    .filter(s -> s.getEarnedScore() != null)
+                    .mapToInt(Submission::getEarnedScore)
+                    .sum();
+            int maxScore = submissions.stream()
+                    .filter(s -> s.getProblem() != null && s.getProblem().getAnswer() != null)
+                    .mapToInt(s -> s.getProblem().getAnswer().getScore())
+                    .sum();
+            String examineeName = examineeRepository.findById(examineeId)
+                    .map(Examinee::getName)
+                    .orElse("알 수 없음");
+
+            notificationService.notifyGradingComplete(examineeId, examId, examineeName, totalScore, maxScore);
+        } catch (Exception e) {
+            log.warn("채점 완료 알림 전송 실패: {}", e.getMessage());
+        }
     }
 
     private void gradeWithLlm(Submission submission, Answer answer) {

@@ -46,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/exam-sessions/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/submissions").permitAll()
                         // 관리자 전용 엔드포인트
+                        .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/exams/**").authenticated()
                         .requestMatchers("/api/submissions/**").authenticated()
                         .requestMatchers("/api/scores/**").authenticated()
