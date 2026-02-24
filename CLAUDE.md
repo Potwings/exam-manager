@@ -9,10 +9,10 @@
 - **Database**: MariaDB 10+ (로컬 설치, `exam_scorer` schema, 테스트: `exam_scorer_test`)
 - **DB 드라이버**: `org.mariadb.jdbc:mariadb-java-client`
 - **파일 파싱**: Apache POI 5.2.5 (docx)
-- **마크다운**: markdown-it (문제 마크다운 렌더링) + @tailwindcss/typography (prose 스타일)
+- **마크다운**: markdown-it (문제 마크다운 렌더링) + @tailwindcss/typography (prose 스타일) + highlight.js (코드 블록 syntax highlighting)
 - **아이콘**: lucide-vue-next
 - **인증**: Spring Security 6 (세션 기반, BCrypt)
-- **LLM 채점**: Ollama (gemma3 모델, 로컬 `http://localhost:11434`)
+- **LLM 채점**: Ollama (gpt-oss:20b 모델, 로컬 `http://localhost:11434`)
 - **코드 에디터**: Monaco Editor (`@guolao/vue-monaco-editor`, CDN 로드)
 - **알림**: vue-sonner (Toast) + SSE (Server-Sent Events) + Browser Notification API
 
@@ -387,6 +387,16 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - Tailwind CSS v4에서는 `@plugin "@tailwindcss/typography"` 지시자 사용 (`@import` 아님)
 - 활용 예시: SQL 문제의 테이블 구조, 코드 포함 문제 등
 
+### 코드 블록 Syntax Highlighting (`highlight.js`)
+- markdown-it `highlight` 콜백으로 highlight.js 연동 (`src/lib/markdown.js`)
+- **지원 언어**: Java, JavaScript (js alias 포함), Python, SQL — core + 개별 언어만 import (경량 번들)
+- **테마**: `github-dark.css` — Monaco Editor(vs-dark)와 시각적 일관성 유지
+- **언어 라벨**: 코드 블록 우상단에 언어명 표시 (`.code-lang-label`, absolute 포지셔닝)
+- **CSS 셀렉터**: `code[class*="language-"]` 사용 — markdown-it이 `<code class="language-{lang}">`으로 래핑하므로 `.hljs` 클래스 아닌 `language-*` 클래스로 매칭
+- **언어 미지정** 코드 블록: highlight 콜백이 빈 문자열 반환 → markdown-it 기본 렌더링 (plain text)
+- **인라인 코드**: highlight 콜백 미적용 → 기존 prose 인라인 스타일 유지
+- 컴포넌트 수정 없이 `renderMarkdown()` 사용하는 모든 곳에 자동 적용 (ExamTake, ExamDetail, ScoreDetail)
+
 ## Monaco Editor (코드 에디터)
 
 - **적용 기준**: 문제별 `codeEditor` 필드 (`Boolean`, 기본값 `false`) — 관리자가 시험 생성/수정 시 문제마다 개별 설정
@@ -549,4 +559,5 @@ ExamTake.vue "관리자 호출" 버튼 클릭
 - [x] 채점 완료 알림 — SSE + vue-sonner Toast + Browser Notification API (관리자 실시간 알림)
 - [x] 관리자 호출 — 수험자가 시험 중 관리자에게 도움 요청 (SSE admin-call 이벤트 + 30초 쿨다운)
 - [x] 그룹 문제(꼬리 문제) — 부모-자식 문제 구조 (생성/수정/복제/응시/채점/결과 표시)
+- [x] 마크다운 코드 블록 syntax highlighting — highlight.js (github-dark 테마, Java/JS/Python/SQL)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)
