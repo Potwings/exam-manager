@@ -185,19 +185,35 @@ public class SubmissionService {
                 .sum();
 
         List<SubmissionResultResponse.SubmissionDetail> details = submissions.stream()
-                .map(s -> SubmissionResultResponse.SubmissionDetail.builder()
-                        .id(s.getId())
-                        .problemNumber(s.getProblem().getProblemNumber())
-                        .submittedAnswer(s.getSubmittedAnswer())
-                        .isCorrect(s.getIsCorrect())
-                        .earnedScore(s.getEarnedScore())
-                        .maxScore(s.getProblem().getAnswer() != null ? s.getProblem().getAnswer().getScore() : 0)
-                        .feedback(s.getFeedback())
-                        .annotatedAnswer(s.getAnnotatedAnswer())
-                        .problemContent(s.getProblem().getContent())
-                        .problemContentType(s.getProblem().getContentType())
-                        .build())
-                .sorted(Comparator.comparingInt(SubmissionResultResponse.SubmissionDetail::getProblemNumber))
+                .map(s -> {
+                    Problem parent = s.getProblem().getParent();
+                    var builder = SubmissionResultResponse.SubmissionDetail.builder()
+                            .id(s.getId())
+                            .problemNumber(s.getProblem().getProblemNumber())
+                            .submittedAnswer(s.getSubmittedAnswer())
+                            .isCorrect(s.getIsCorrect())
+                            .earnedScore(s.getEarnedScore())
+                            .maxScore(s.getProblem().getAnswer() != null ? s.getProblem().getAnswer().getScore() : 0)
+                            .feedback(s.getFeedback())
+                            .annotatedAnswer(s.getAnnotatedAnswer())
+                            .problemContent(s.getProblem().getContent())
+                            .problemContentType(s.getProblem().getContentType());
+
+                    if (parent != null) {
+                        builder.parentProblemId(parent.getId())
+                                .parentProblemNumber(parent.getProblemNumber())
+                                .parentProblemContent(parent.getContent())
+                                .parentProblemContentType(parent.getContentType());
+                    }
+
+                    return builder.build();
+                })
+                // 정렬: 부모 번호 우선 → 같은 부모 내에서 자식 번호 순
+                .sorted(Comparator
+                        .comparingInt((SubmissionResultResponse.SubmissionDetail d) ->
+                                d.getParentProblemNumber() != null ? d.getParentProblemNumber() : d.getProblemNumber())
+                        .thenComparingInt(d ->
+                                d.getParentProblemNumber() != null ? d.getProblemNumber() : 0))
                 .toList();
 
         Exam exam = problems.isEmpty() ? null : problems.get(0).getExam();

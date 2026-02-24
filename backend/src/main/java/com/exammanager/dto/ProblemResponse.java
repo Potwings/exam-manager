@@ -3,6 +3,9 @@ package com.exammanager.dto;
 import com.exammanager.entity.Problem;
 import lombok.*;
 
+import java.util.Collections;
+import java.util.List;
+
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ProblemResponse {
     private Long id;
@@ -11,6 +14,7 @@ public class ProblemResponse {
     private String contentType;
     private String answerContent;
     private Integer score;
+    private List<ProblemResponse> children;
 
     public static ProblemResponse from(Problem problem) {
         return from(problem, false);
@@ -26,6 +30,15 @@ public class ProblemResponse {
         if (includeAnswer && problem.getAnswer() != null) {
             builder.answerContent(problem.getAnswer().getContent())
                    .score(problem.getAnswer().getScore());
+        }
+
+        List<Problem> kids = problem.getChildren();
+        if (kids != null && !kids.isEmpty()) {
+            builder.children(kids.stream()
+                    .map(c -> ProblemResponse.from(c, includeAnswer))
+                    .toList());
+        } else {
+            builder.children(Collections.emptyList());
         }
 
         return builder.build();

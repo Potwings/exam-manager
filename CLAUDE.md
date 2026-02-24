@@ -146,6 +146,7 @@ ollama:
 ### 프롬프트 구조 (`GradingService.java`)
 - **System**: 엄격한 채점관 역할. 부분 점수 규칙, 필수 키워드(뉘앙스 일치 허용), 감점 규칙 준수 지시
 - **User**: `[문제]` + `[채점 기준](배점)` + `[수험자 답안]`
+- **그룹 자식 문제**: 부모 지문을 `[보기]` 태그로 감싸서 `[문제]` 앞에 포함 (`[보기]\n{부모지문}\n\n[문제]\n{자식내용}`)
 - **응답**: `{"earnedScore": N, "feedback": "채점 근거"}`
 
 ### 채점 기준
@@ -163,6 +164,46 @@ ollama:
 Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오답 (단순 비교 채점)"
 
 ## 시험 관리 시스템
+
+### 그룹 문제 (꼬리 문제)
+하나의 공통 지문(보기)에 여러 하위 문제가 엮인 출제 형식:
+```
+Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (부모 - 지문만, 답안/배점 없음)
+  ├── Q5-1. INSERT 문을 작성하시오. (하위 - 답안/배점 있음)
+  ├── Q5-2. UPDATE 문을 작성하시오. (하위 - 답안/배점 있음)
+  └── Q5-3. SELECT 문을 작성하시오. (하위 - 답안/배점 있음)
+```
+
+#### Entity 구조 (`Problem.java`)
+- `@ManyToOne parent` (LAZY) + `@OneToMany children` (EAGER, orphanRemoval, `@OrderBy("problemNumber ASC")`)
+- 부모 문제: `answerContent=null`, `score=null`, Answer 미생성 (지문 전용)
+- 자식 문제: 각각 독립적인 답안/배점/채점
+- 기존 독립 문제: `parent=null`, `children=[]` → 완전 하위 호환
+
+#### 관리자 UI (`ExamCreate.vue`)
+- 각 문제에 "그룹 문제" 토글 버튼 (`isGroup`)
+- `isGroup=true` 시: 배점/채점기준 숨김, 하위 문제 섹션 표시 (border-l 인덴트)
+- 하위 문제 추가/삭제 버튼, 번호: 부모번호-자식번호 (Q5-1)
+- 검증: 그룹 문제는 지문 필수 + 하위 1개 이상 + 각 하위 답안/배점 유효
+- 총점: 그룹 문제는 자식 배점 합산
+- 수정/복제 모드: `p.children.length > 0`으로 `isGroup` 자동 판별
+
+#### 응시자 UI (`ExamTake.vue`)
+- 그룹 문제: 부모 지문 Card + 하위 문제별 답안 입력 (border-l 인덴트)
+- `answerableProblems` computed: 독립 문제 + 그룹 자식 문제만 추출하여 답안 수집
+- `answers[child.id]`로 하위 문제별 독립 입력
+
+#### 시험 상세 (`ExamDetail.vue`)
+- 그룹 문제: "그룹" Badge + 공통 지문 + 하위 문제 카드 (인덴트, 개별 배점/채점기준)
+
+#### 채점 결과 (`ScoreDetail.vue`)
+- `groupedSubmissions` computed: `parentProblemId`로 제출 결과 그룹핑
+- 그룹: 부모 지문 한 번 표시 + 하위 제출 결과 각각 표시
+- 독립: 기존 Card 유지
+
+#### LLM 채점 (`GradingService.java`)
+- 자식 문제 채점 시 부모 지문을 `[보기]` 태그로 프롬프트에 포함
+- 부모는 Answer 없어 채점 대상 자체에서 제외
 
 ### 시험 생성
 - 관리자가 `/admin/exams/create`에서 시험 제목 + 문제/채점기준/배점을 직접 입력
@@ -233,7 +274,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 |--------|-------|------|
 | Admin | admins | 관리자 (username:`UNIQUE`, password:`BCrypt`, role, **initLogin**) |
 | Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**, **timeLimit**) |
-| Problem | problems | 문제 (problemNumber, content, **contentType**) → Exam N:1 |
+| Problem | problems | 문제 (problemNumber, content, **contentType**, **parent_id**) → Exam N:1, 자기참조 부모-자식 |
 | Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
 | Examinee | examinees | 시험자 (name, **birthDate**) |
 | Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**, **annotatedAnswer**) → Examinee, Problem N:1 |
@@ -273,10 +314,10 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 
 | 클래스 | 용도 |
 |--------|------|
-| ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, answerContent, score}]) |
-| ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, **timeLimit**, createdAt) |
-| ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions**, **timeLimit** 포함) |
-| ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, answerContent?, score?) — 답안은 관리자용만 포함 |
+| ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, answerContent, score, **children**}]) |
+| ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, **timeLimit**, createdAt) — problemCount는 최상위 문제만 카운트 |
+| ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions**, **timeLimit** 포함) — problems는 최상위만 필터 (자식은 재귀 포함) |
+| ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, answerContent?, score?, **children**) — 답안은 관리자용만 포함, children 재귀 매핑 |
 | AiAssistRequest | AI 출제 요청 (topic, difficulty 등) |
 | AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
 | AdminLoginRequest | 관리자 로그인 요청 (username, password) |
@@ -287,7 +328,7 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 | ExamineeResponse | 시험자 응답 (id, name, **birthDate**) |
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
 | SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback, **annotatedAnswer**) |
-| SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**}]) |
+| SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**, **parentProblemId**, **parentProblemNumber**, **parentProblemContent**, **parentProblemContentType**}]) |
 | ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, **gradingComplete**, submittedAt) |
 | ExamSessionRequest | 시험 세션 생성 요청 (examineeId, examId) |
 | ExamSessionResponse | 시험 세션 응답 (remainingSeconds — null이면 시간 제한 없음) |
@@ -432,4 +473,5 @@ Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오
 - [x] 관리자 로그인 페이지 접근 개선 — 헤더 우측에 "관리자 로그인" 링크 추가 (미로그인 시만 표시)
 - [x] 시험 시간 제한 + 카운트다운 타이머 + 자동 제출 (ExamSession 서버 기반)
 - [x] 응시 중 답안 유지 — localStorage로 수험자 인증/답안 영속화 (새로고침/브라우저 재시작 대응)
+- [x] 그룹 문제(꼬리 문제) — 부모-자식 문제 구조 (생성/수정/복제/응시/채점/결과 표시)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)

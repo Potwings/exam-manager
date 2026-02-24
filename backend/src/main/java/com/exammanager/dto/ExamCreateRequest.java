@@ -17,6 +17,7 @@ public class ExamCreateRequest {
         private String content;
         private String contentType = "TEXT";
         private String answerContent;
-        private int score;
+        private Integer score;
+        private List<ProblemInput> children;
     }
 }

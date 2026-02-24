@@ -25,9 +25,12 @@ public class ExamDetailResponse {
     }
 
     private static ExamDetailResponse buildResponse(Exam exam, boolean hasSubmissions, boolean includeAnswer) {
+        // 최상위 문제만 매핑 (자식은 ProblemResponse.children으로 재귀 포함)
         List<ProblemResponse> problemList = exam.getProblems().stream()
+                .filter(p -> p.getParent() == null)
                 .map(p -> ProblemResponse.from(p, includeAnswer))
                 .toList();
+        // totalScore: 전체 문제(자식 포함) 중 answer가 있는 것만 합산
         int total = exam.getProblems().stream()
                 .filter(p -> p.getAnswer() != null)
                 .mapToInt(p -> p.getAnswer().getScore())

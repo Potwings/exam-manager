@@ -3,6 +3,9 @@ package com.exammanager.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "problems")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -26,4 +29,13 @@ public class Problem {
 
     @OneToOne(mappedBy = "problem", cascade = CascadeType.ALL, orphanRemoval = true)
     private Answer answer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private Problem parent;
+
+    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OrderBy("problemNumber ASC")
+    @Builder.Default
+    private List<Problem> children = new ArrayList<>();
 }

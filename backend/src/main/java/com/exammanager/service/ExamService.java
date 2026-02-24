@@ -35,19 +35,17 @@ public class ExamService {
                 .orElse(Collections.emptyList());
 
         for (ExamCreateRequest.ProblemInput pi : problemInputs) {
-            Problem problem = Problem.builder()
-                    .problemNumber(pi.getProblemNumber())
-                    .content(pi.getContent())
-                    .contentType(pi.getContentType() != null ? pi.getContentType() : "TEXT")
-                    .exam(exam)
-                    .build();
-            Answer answer = Answer.builder()
-                    .content(pi.getAnswerContent())
-                    .score(pi.getScore())
-                    .problem(problem)
-                    .build();
-            problem.setAnswer(answer);
+            Problem problem = buildProblem(pi, exam);
             exam.getProblems().add(problem);
+
+            if (pi.getChildren() != null) {
+                for (ExamCreateRequest.ProblemInput ci : pi.getChildren()) {
+                    Problem child = buildProblem(ci, exam);
+                    child.setParent(problem);
+                    problem.getChildren().add(child);
+                    exam.getProblems().add(child);
+                }
+            }
         }
 
         return examRepository.save(exam);
@@ -120,19 +118,17 @@ public class ExamService {
                 .orElse(Collections.emptyList());
 
         for (ExamCreateRequest.ProblemInput pi : problemInputs) {
-            Problem problem = Problem.builder()
-                    .problemNumber(pi.getProblemNumber())
-                    .content(pi.getContent())
-                    .contentType(pi.getContentType() != null ? pi.getContentType() : "TEXT")
-                    .exam(exam)
-                    .build();
-            Answer answer = Answer.builder()
-                    .content(pi.getAnswerContent())
-                    .score(pi.getScore())
-                    .problem(problem)
-                    .build();
-            problem.setAnswer(answer);
+            Problem problem = buildProblem(pi, exam);
             exam.getProblems().add(problem);
+
+            if (pi.getChildren() != null) {
+                for (ExamCreateRequest.ProblemInput ci : pi.getChildren()) {
+                    Problem child = buildProblem(ci, exam);
+                    child.setParent(problem);
+                    problem.getChildren().add(child);
+                    exam.getProblems().add(child);
+                }
+            }
         }
 
         return examRepository.save(exam);
@@ -140,5 +136,26 @@ public class ExamService {
 
     public boolean hasSubmissions(Long examId) {
         return submissionRepository.existsByProblemExamId(examId);
+    }
+
+    private Problem buildProblem(ExamCreateRequest.ProblemInput pi, Exam exam) {
+        Problem problem = Problem.builder()
+                .problemNumber(pi.getProblemNumber())
+                .content(pi.getContent())
+                .contentType(pi.getContentType() != null ? pi.getContentType() : "TEXT")
+                .exam(exam)
+                .build();
+
+        // answerContent가 있는 경우에만 Answer 생성 (지문 전용 부모는 스킵)
+        if (pi.getAnswerContent() != null && !pi.getAnswerContent().isBlank()) {
+            Answer answer = Answer.builder()
+                    .content(pi.getAnswerContent())
+                    .score(pi.getScore() != null ? pi.getScore() : 0)
+                    .problem(problem)
+                    .build();
+            problem.setAnswer(answer);
+        }
+
+        return problem;
     }
 }
