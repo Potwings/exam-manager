@@ -40,6 +40,16 @@
             <Code class="h-3.5 w-3.5 mr-1" />
             코드 에디터
           </Button>
+          <select
+            v-if="form.codeEditor"
+            v-model="form.codeLanguage"
+            class="h-8 px-2 text-sm border rounded bg-background"
+          >
+            <option value="java">Java</option>
+            <option value="javascript">JavaScript</option>
+            <option value="python">Python</option>
+            <option value="sql">SQL</option>
+          </select>
         </div>
 
         <!-- 문제 내용 -->
@@ -132,6 +142,7 @@ const form = ref({
   content: '',
   contentType: 'TEXT',
   codeEditor: false,
+  codeLanguage: 'java',
   answerContent: '',
   score: null
 })
@@ -164,6 +175,7 @@ watch(() => props.open, (opened) => {
       content: props.problem.content || '',
       contentType: props.problem.contentType || 'TEXT',
       codeEditor: Boolean(props.problem.codeEditor),
+      codeLanguage: props.problem.codeLanguage || 'java',
       answerContent: props.problem.answerContent || '',
       score: props.problem.score ?? null
     }
@@ -186,7 +198,8 @@ async function handleSave() {
     const payload = {
       content: form.value.content,
       contentType: form.value.contentType,
-      codeEditor: form.value.codeEditor
+      codeEditor: form.value.codeEditor,
+      codeLanguage: form.value.codeEditor ? (form.value.codeLanguage || 'java') : null
     }
     if (!props.isGroupParent) {
       payload.answerContent = form.value.answerContent

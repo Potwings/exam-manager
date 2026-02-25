@@ -26,6 +26,8 @@ public class SubmissionResultResponse {
         private String annotatedAnswer;
         private String problemContent;
         private String problemContentType;
+        private Boolean codeAnswer;
+        private String codeLanguage;
         private Long parentProblemId;
         private Integer parentProblemNumber;
         private String parentProblemContent;

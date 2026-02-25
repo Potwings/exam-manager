@@ -315,12 +315,12 @@ function initLanguages(problems) {
     if (p.children && p.children.length > 0) {
       for (const child of p.children) {
         if (isCodeProblem(child)) {
-          languages[child.id] = 'java'
+          languages[child.id] = child.codeLanguage || 'java'
         }
       }
     } else {
       if (isCodeProblem(p)) {
-        languages[p.id] = 'java'
+        languages[p.id] = p.codeLanguage || 'java'
       }
     }
   }

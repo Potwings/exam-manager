@@ -26,6 +26,8 @@ public class Problem {
     @Builder.Default
     private Boolean codeEditor = false;
 
+    private String codeLanguage;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_id")
     private Exam exam;

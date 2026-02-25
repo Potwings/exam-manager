@@ -80,6 +80,16 @@
                 <Code class="h-3 w-3" />
                 코드 에디터
               </Button>
+              <select
+                v-if="!p.isGroup && p.codeEditor"
+                v-model="p.codeLanguage"
+                class="h-6 px-1.5 text-xs border rounded bg-background"
+              >
+                <option value="java">Java</option>
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+                <option value="sql">SQL</option>
+              </select>
             </div>
             <div class="flex items-center gap-2">
               <!-- 독립 문제일 때만 배점 표시 -->
@@ -204,6 +214,16 @@
                     <Code class="h-3 w-3" />
                     코드 에디터
                   </Button>
+                  <select
+                    v-if="child.codeEditor"
+                    v-model="child.codeLanguage"
+                    class="h-6 px-1.5 text-xs border rounded bg-background"
+                  >
+                    <option value="java">Java</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="python">Python</option>
+                    <option value="sql">SQL</option>
+                  </select>
                 </div>
                 <div class="flex items-center gap-2">
                   <div class="flex items-center gap-1">
@@ -397,6 +417,7 @@ onMounted(async () => {
           content: p.content || '',
           contentType: p.contentType || 'TEXT',
           codeEditor: !!p.codeEditor,
+          codeLanguage: p.codeLanguage || 'java',
           answerContent: p.answerContent || '',
           score: p.score || 5,
           isGroup: hasChildren,
@@ -407,6 +428,7 @@ onMounted(async () => {
                 content: c.content || '',
                 contentType: c.contentType || 'TEXT',
                 codeEditor: !!c.codeEditor,
+                codeLanguage: c.codeLanguage || 'java',
                 answerContent: c.answerContent || '',
                 score: c.score || 5
               }))
@@ -475,11 +497,11 @@ function generateId() {
 }
 
 function makeProblem(num) {
-  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', codeEditor: false, answerContent: '', score: 5, isGroup: false, children: [] }
+  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', codeEditor: false, codeLanguage: 'java', answerContent: '', score: 5, isGroup: false, children: [] }
 }
 
 function makeChildProblem(num) {
-  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', codeEditor: false, answerContent: '', score: 5 }
+  return { id: generateId(), problemNumber: num, content: '', contentType: 'TEXT', codeEditor: false, codeLanguage: 'java', answerContent: '', score: 5 }
 }
 
 function addProblem() {
@@ -532,18 +554,21 @@ async function handleSubmit() {
         problemNumber: p.problemNumber,
         content: p.content.trim(),
         contentType: p.contentType,
-        codeEditor: !!p.codeEditor
+        codeEditor: !!p.codeEditor,
+        codeLanguage: p.codeEditor ? (p.codeLanguage || 'java') : null
       }
       if (p.isGroup) {
         // 그룹 문제: answerContent/score 없음, children 포함
         base.answerContent = null
         base.score = null
         base.codeEditor = false  // 그룹 부모는 코드 에디터 불필요
+        base.codeLanguage = null
         base.children = p.children.map(c => ({
           problemNumber: c.problemNumber,
           content: c.content.trim(),
           contentType: c.contentType,
           codeEditor: !!c.codeEditor,
+          codeLanguage: c.codeEditor ? (c.codeLanguage || 'java') : null,
           answerContent: c.answerContent.trim(),
           score: c.score
         }))

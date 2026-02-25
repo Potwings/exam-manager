@@ -160,6 +160,7 @@ public class ExamService {
         problem.setContent(request.getContent());
         problem.setContentType(request.getContentType() != null ? request.getContentType() : "TEXT");
         problem.setCodeEditor(Boolean.TRUE.equals(request.getCodeEditor()));
+        problem.setCodeLanguage(request.getCodeLanguage());
 
         if (!isGroupParent) {
             if (request.getAnswerContent() == null || request.getAnswerContent().isBlank()) {
@@ -200,6 +201,7 @@ public class ExamService {
                 .content(pi.getContent())
                 .contentType(pi.getContentType() != null ? pi.getContentType() : "TEXT")
                 .codeEditor(pi.isCodeEditor())
+                .codeLanguage(pi.getCodeLanguage())
                 .exam(exam)
                 .build();
 
