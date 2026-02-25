@@ -6,6 +6,10 @@ let reconnectTimer = null
 let shouldReconnect = false
 const connected = ref(false)
 
+const MAX_NOTIFICATIONS = 20
+const notifications = ref([])
+const unreadCount = ref(0)
+
 function handleGradingComplete(event) {
   try {
     const data = JSON.parse(event.data)
@@ -18,6 +22,8 @@ function handleGradingComplete(event) {
     } else {
       showBrowserNotification('채점 완료', message)
     }
+
+    addNotification({ type: 'grading-complete', title: '채점 완료', message, data })
   } catch {
     console.warn('채점 완료 알림 파싱 실패:', event.data)
   }
@@ -35,6 +41,8 @@ function handleAdminCall(event) {
     } else {
       showBrowserNotification('관리자 호출', message)
     }
+
+    addNotification({ type: 'admin-call', title: '관리자 호출', message, data })
   } catch {
     console.warn('관리자 호출 알림 파싱 실패:', event.data)
   }
@@ -85,6 +93,7 @@ export function disconnect() {
   clearTimeout(reconnectTimer)
   reconnectTimer = null
   cleanup()
+  clearNotifications()
 }
 
 function cleanup() {
@@ -97,6 +106,30 @@ function cleanup() {
   }
 }
 
+function addNotification({ type, title, message, data }) {
+  notifications.value.unshift({
+    id: Date.now().toString() + '-' + Math.random().toString(36).slice(2, 7),
+    type,
+    title,
+    message,
+    timestamp: new Date(),
+    data
+  })
+  if (notifications.value.length > MAX_NOTIFICATIONS) {
+    notifications.value = notifications.value.slice(0, MAX_NOTIFICATIONS)
+  }
+  unreadCount.value++
+}
+
+function markAllRead() {
+  unreadCount.value = 0
+}
+
+function clearNotifications() {
+  notifications.value = []
+  unreadCount.value = 0
+}
+
 export function useNotifications() {
-  return { connected, connect, disconnect, requestPermission }
+  return { connected, connect, disconnect, requestPermission, notifications, unreadCount, markAllRead }
 }
