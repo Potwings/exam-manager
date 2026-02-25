@@ -221,7 +221,7 @@
                     v-if="aiAvailable"
                     size="sm"
                     variant="ghost"
-                    @click="openAiDialog(child)"
+                    @click="openAiDialog(child, p)"
                     title="AI 출제 도우미"
                   >
                     <Sparkles class="h-4 w-4 text-amber-500" />
@@ -312,6 +312,7 @@ public void main() {}
     <AiAssistDialog
       v-model:open="aiDialogOpen"
       :problem="aiTargetProblem"
+      :parent="aiParentProblem"
       @apply="applyAiResult"
     />
   </div>
@@ -350,6 +351,7 @@ const previewState = reactive({})
 const aiAvailable = ref(false)
 const aiDialogOpen = ref(false)
 const aiTargetProblem = ref(null)
+const aiParentProblem = ref(null)
 
 onMounted(async () => {
   try {
@@ -396,8 +398,9 @@ onMounted(async () => {
   }
 })
 
-function openAiDialog(problem) {
+function openAiDialog(problem, parentProblem = null) {
   aiTargetProblem.value = problem
+  aiParentProblem.value = parentProblem
   aiDialogOpen.value = true
 }
 

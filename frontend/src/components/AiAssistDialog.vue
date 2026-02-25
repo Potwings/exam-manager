@@ -54,6 +54,17 @@
       </ScrollArea>
       </div>
 
+      <!-- 부모 공통 지문 안내 배너 — 그룹 하위 문제에서 AI 도우미 사용 시 표시 -->
+      <div v-if="parent?.content?.trim()" class="border-t px-6 pt-3">
+        <div class="border border-blue-500/30 bg-blue-50 dark:bg-blue-950/20 rounded-lg px-3 py-2">
+          <div class="flex items-center gap-2">
+            <FileText class="h-4 w-4 text-blue-600 shrink-0" />
+            <span class="text-xs font-medium text-blue-700 dark:text-blue-400">공통 지문(보기)이 프롬프트에 포함됩니다</span>
+          </div>
+          <p class="text-xs text-muted-foreground mt-1 truncate">{{ parent.content.trim().substring(0, 120) }}{{ parent.content.trim().length > 120 ? '...' : '' }}</p>
+        </div>
+      </div>
+
       <!-- 기존 문제 내용 안내 배너 — 입력 영역 바로 위에 표시 -->
       <div v-if="hasInitialContent" class="border-t px-6 pt-3">
         <div class="border border-amber-500/30 bg-amber-50 dark:bg-amber-950/20 rounded-lg p-3 space-y-2">
@@ -121,7 +132,8 @@ import { Sparkles, Loader2, FileText, X } from 'lucide-vue-next'
 
 const props = defineProps({
   open: Boolean,
-  problem: Object
+  problem: Object,
+  parent: Object
 })
 
 const emit = defineEmits(['update:open', 'apply'])
@@ -218,6 +230,11 @@ async function handleGenerate() {
       instruction: text,
       contentType: props.problem?.contentType || 'TEXT',
       score: props.problem?.score || 5
+    }
+
+    // 그룹 문제의 부모 공통 지문이 있으면 포함 — AI가 보기를 맥락으로 인식하도록 함
+    if (props.parent?.content?.trim()) {
+      data.parentContent = props.parent.content.trim()
     }
 
     // 개선 요청: 최신 결과가 있으면 currentContent/currentAnswer 포함
