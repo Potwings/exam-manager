@@ -197,7 +197,9 @@ public class SubmissionService {
                             .feedback(s.getFeedback())
                             .annotatedAnswer(s.getAnnotatedAnswer())
                             .problemContent(s.getProblem().getContent())
-                            .problemContentType(s.getProblem().getContentType());
+                            .problemContentType(s.getProblem().getContentType())
+                            .codeAnswer(s.getProblem().getCodeEditor())
+                            .codeLanguage(s.getProblem().getCodeLanguage());
 
                     if (parent != null) {
                         builder.parentProblemId(parent.getId())

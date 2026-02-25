@@ -318,7 +318,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 |--------|-------|------|
 | Admin | admins | 관리자 (username:`UNIQUE`, password:`BCrypt`, role, **initLogin**) |
 | Exam | exams | 시험 (title, problemFileName, answerFileName, **deleted**, **active**, **timeLimit**) |
-| Problem | problems | 문제 (problemNumber, content, **contentType**, **codeEditor**, **parent_id**) → Exam N:1, 자기참조 부모-자식 |
+| Problem | problems | 문제 (problemNumber, content, **contentType**, **codeEditor**, **codeLanguage**, **parent_id**) → Exam N:1, 자기참조 부모-자식 |
 | Answer | answers | 정답/채점기준 (content, score:`int`) → Problem 1:1 |
 | Examinee | examinees | 시험자 (name, **birthDate**) |
 | Submission | submissions | 제출 답안 (submittedAnswer, isCorrect, earnedScore, **feedback**, **annotatedAnswer**) → Examinee, Problem N:1 |
@@ -361,11 +361,11 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 
 | 클래스 | 용도 |
 |--------|------|
-| ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, **codeEditor**, answerContent, score, **children**}]) |
-| ProblemUpdateRequest | 개별 문제 수정 요청 (@NotBlank content, contentType, codeEditor, answerContent, score) — 그룹 부모는 content만, 독립/자식은 전 필드 |
+| ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, **codeEditor**, **codeLanguage**, answerContent, score, **children**}]) |
+| ProblemUpdateRequest | 개별 문제 수정 요청 (@NotBlank content, contentType, codeEditor, **codeLanguage**, answerContent, score) — 그룹 부모는 content만, 독립/자식은 전 필드 |
 | ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, **timeLimit**, createdAt) — problemCount는 최상위 문제만 카운트 |
 | ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions**, **timeLimit** 포함) — problems는 최상위만 필터 (자식은 재귀 포함) |
-| ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, **codeEditor**, answerContent?, score?, **children**) — 답안은 관리자용만 포함, children 재귀 매핑 |
+| ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, **codeEditor**, **codeLanguage**, answerContent?, score?, **children**) — 답안은 관리자용만 포함, children 재귀 매핑 |
 | AiAssistRequest | AI 출제 요청 (topic, difficulty, **parentContent** 등) |
 | AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
 | AdminLoginRequest | 관리자 로그인 요청 (username, password) |
@@ -376,7 +376,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 | ExamineeResponse | 시험자 응답 (id, name, **birthDate**) |
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
 | SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback, **annotatedAnswer**) |
-| SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**, **parentProblemId**, **parentProblemNumber**, **parentProblemContent**, **parentProblemContentType**}]) |
+| SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**, **codeAnswer**, **codeLanguage**, **parentProblemId**, **parentProblemNumber**, **parentProblemContent**, **parentProblemContentType**}]) |
 | ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, **gradingComplete**, submittedAt) |
 | ExamSessionRequest | 시험 세션 생성 요청 (examineeId, examId) |
 | ExamSessionResponse | 시험 세션 응답 (remainingSeconds — null이면 시간 제한 없음) |
@@ -427,10 +427,11 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 ## Monaco Editor (코드 에디터)
 
 - **적용 기준**: 문제별 `codeEditor` 필드 (`Boolean`, 기본값 `false`) — 관리자가 시험 생성/수정 시 문제마다 개별 설정
-- **관리자 UI** (`ExamCreate.vue`): 독립 문제·하위 문제 헤더에 "코드 에디터" 토글 버튼 (초록색 강조)
-- **응시자 UI** (`ExamTake.vue`): `problem.codeEditor === true`이면 Monaco Editor, 아니면 textarea 표시
+- **기본 언어 설정**: 문제별 `codeLanguage` 필드 (`String`, nullable) — 관리자가 문제 생성/수정 시 기본 언어 지정 (java/javascript/python/sql)
+- **관리자 UI** (`ExamCreate.vue`): 독립 문제·하위 문제 헤더에 "코드 에디터" 토글 버튼 (초록색 강조) + 언어 드롭다운 (`codeEditor` ON 시만 표시)
+- **문제 편집** (`ProblemEditDialog.vue`): 개별 문제 편집 Dialog에도 코드 에디터 토글 + 언어 드롭다운 제공
+- **응시자 UI** (`ExamTake.vue`): `problem.codeEditor === true`이면 Monaco Editor, 아니면 textarea 표시. `problem.codeLanguage || 'java'`로 기본 언어 적용
 - **시험 상세** (`ExamDetail.vue`): `codeEditor=true` 문제에 점수 옆 "코드 에디터" Badge 표시
-- **기본 언어**: Java (수험자가 드롭다운으로 Java / JavaScript / Python / SQL 변경 가능)
 - **설정**: VS Code 다크 테마, minimap 비활성화, fontSize 14, wordWrap on
 - **로컬 번들**: `monaco-editor` 패키지 + Web Worker(editor/json/typescript) 직접 로드. 외부 CDN 의존성 없음
 
@@ -589,4 +590,5 @@ ExamTake.vue "관리자 호출" 버튼 클릭
 - [x] 그룹 문제(꼬리 문제) — 부모-자식 문제 구조 (생성/수정/복제/응시/채점/결과 표시)
 - [x] 마크다운 코드 블록 syntax highlighting — highlight.js (github-dark 테마, Java/JS/Python/SQL)
 - [x] ExamDetail 개별 문제 수정 — ProblemEditDialog + in-place PATCH (Problem ID 보존, Submission FK 안전)
+- [x] 코드 에디터 기본 언어 설정 — 문제별 codeLanguage 필드 (관리자 설정 → 수험자 기본 언어 적용)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)
