@@ -13,7 +13,7 @@
 - **아이콘**: lucide-vue-next
 - **인증**: Spring Security 6 (세션 기반, BCrypt)
 - **LLM 채점**: Ollama (gpt-oss:20b 모델, 로컬 `http://localhost:11434`)
-- **코드 에디터**: Monaco Editor (`@guolao/vue-monaco-editor`, CDN 로드)
+- **코드 에디터**: Monaco Editor (`@guolao/vue-monaco-editor` + `monaco-editor`, 로컬 번들)
 - **알림**: vue-sonner (Toast) + SSE (Server-Sent Events) + Browser Notification API
 
 ## Project Structure
@@ -84,7 +84,7 @@ npx shadcn-vue@latest add <component-name>
 - **상태관리**: Pinia Composition API 스타일 (`defineStore` + `ref`)
 - **라우터**: `src/router/index.js`에 정의. views는 `admin/`, `exam/` 디렉토리로 구분
 - **API 호출**: `src/api/index.js`의 axios 인스턴스 + named export 함수 사용. Vite proxy로 `/api` → `API_TARGET` (`.env`) 연결
-- **코드 에디터**: Monaco Editor는 `main.js`에서 글로벌 플러그인으로 등록. CDN(`jsdelivr`)에서 로드
+- **코드 에디터**: Monaco Editor는 `main.js`에서 글로벌 플러그인으로 등록. 로컬 번들 로드 (`monaco-editor` + Web Worker 설정, CDN 의존성 없음)
 - **헤더**: 좌상단 서비스명 "ExamManager" 표시. 관리자 미로그인 시 우측에 "관리자 로그인" 링크 표시 (`text-xs`, `text-muted-foreground/60`로 눈에 띄지 않게 처리) (`App.vue`)
 
 ### Backend
@@ -206,6 +206,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - 검증: 그룹 문제는 지문 필수 + 하위 1개 이상 + 각 하위 답안/배점 유효
 - 총점: 그룹 문제는 자식 배점 합산
 - 수정/복제 모드: `p.children.length > 0`으로 `isGroup` 자동 판별
+- 하위 문제 MARKDOWN 타입 선택 시 미리보기/편집 토글 지원 (독립 문제와 동일 패턴)
 
 #### 응시자 UI (`ExamTake.vue`)
 - 그룹 문제: 부모 지문 Card + 하위 문제별 답안 입력 (border-l 인덴트)
@@ -339,7 +340,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 | ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, **timeLimit**, createdAt) — problemCount는 최상위 문제만 카운트 |
 | ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions**, **timeLimit** 포함) — problems는 최상위만 필터 (자식은 재귀 포함) |
 | ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, **codeEditor**, answerContent?, score?, **children**) — 답안은 관리자용만 포함, children 재귀 매핑 |
-| AiAssistRequest | AI 출제 요청 (topic, difficulty 등) |
+| AiAssistRequest | AI 출제 요청 (topic, difficulty, **parentContent** 등) |
 | AiAssistResponse | AI 출제 응답 (problemContent, answerContent, contentType, score) |
 | AdminLoginRequest | 관리자 로그인 요청 (username, password) |
 | AdminRegisterRequest | 관리자 등록 요청 (username, password) |
@@ -405,7 +406,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - **시험 상세** (`ExamDetail.vue`): `codeEditor=true` 문제에 점수 옆 "코드 에디터" Badge 표시
 - **기본 언어**: Java (수험자가 드롭다운으로 Java / JavaScript / Python / SQL 변경 가능)
 - **설정**: VS Code 다크 테마, minimap 비활성화, fontSize 14, wordWrap on
-- **CDN**: `https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs`
+- **로컬 번들**: `monaco-editor` 패키지 + Web Worker(editor/json/typescript) 직접 로드. 외부 CDN 의존성 없음
 
 ## 인증/권한 체계
 
@@ -541,6 +542,7 @@ ExamTake.vue "관리자 호출" 버튼 클릭
 - `GET /api/ai-assist/status` — Ollama 사용 가능 여부 확인 (버튼 표시 제어)
 - `POST /api/ai-assist/generate` — 주제/난이도 기반 문제+채점기준 생성
 - `AiAssistDialog.vue` — shadcn Dialog + ScrollArea로 결과 표시, 적용 버튼으로 폼에 반영
+- **그룹 문제 공통지문**: 하위 문제에서 AI 요청 시 `AiAssistRequest.parentContent`로 부모 지문 전달 → `AiAssistService`에서 `[보기]` 태그로 프롬프트에 포함, Dialog에 공통지문 안내 배너 표시
 - Ollama 미실행 시 AI 버튼 자체가 숨김 처리됨
 
 ## TODO (미구현)
