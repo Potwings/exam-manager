@@ -84,6 +84,10 @@ export function activateExam(id) {
   return api.patch(`/exams/${id}/activate`)
 }
 
+export function updateProblem(examId, problemId, data) {
+  return api.patch(`/exams/${examId}/problems/${problemId}`, data)
+}
+
 export function fetchActiveExam() {
   return api.get('/exams/active')
 }
