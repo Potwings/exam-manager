@@ -150,6 +150,11 @@ public class ExamService {
                     "해당 시험에 속한 문제가 아닙니다.");
         }
 
+        if (Boolean.TRUE.equals(problem.getExam().getDeleted())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "삭제된 시험은 수정할 수 없습니다.");
+        }
+
         boolean isGroupParent = problem.getChildren() != null && !problem.getChildren().isEmpty();
 
         problem.setContent(request.getContent());

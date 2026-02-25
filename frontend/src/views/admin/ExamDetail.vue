@@ -45,7 +45,7 @@
             </CardTitle>
             <div class="flex items-center gap-1">
               <Badge v-if="problem.contentType === 'MARKDOWN'" variant="outline" class="text-xs">마크다운</Badge>
-              <Button variant="ghost" size="sm" class="h-7 w-7 p-0" @click="openEditDialog(problem, true)">
+              <Button variant="ghost" size="sm" class="h-7 w-7 p-0" :aria-label="`Q${problem.problemNumber} 공통 지문 수정`" @click="openEditDialog(problem, true)">
                 <SquarePen class="h-3.5 w-3.5 text-muted-foreground" />
               </Button>
             </div>
@@ -67,7 +67,7 @@
                 <div class="flex items-center gap-1">
                   <Badge variant="secondary" class="text-xs">{{ child.score }}점</Badge>
                   <Badge v-if="child.codeEditor" variant="outline" class="text-xs text-emerald-700 border-emerald-300 dark:text-emerald-300 dark:border-emerald-700">코드 에디터</Badge>
-                  <Button variant="ghost" size="sm" class="h-7 w-7 p-0" @click="openEditDialog(child, false, problem.problemNumber)">
+                  <Button variant="ghost" size="sm" class="h-7 w-7 p-0" :aria-label="`Q${problem.problemNumber}-${child.problemNumber} 문제 수정`" @click="openEditDialog(child, false, problem.problemNumber)">
                     <SquarePen class="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 </div>
@@ -97,7 +97,7 @@
             </CardTitle>
             <div class="flex items-center gap-1">
               <Badge v-if="problem.contentType === 'MARKDOWN'" variant="outline" class="text-xs">마크다운</Badge>
-              <Button variant="ghost" size="sm" class="h-7 w-7 p-0" @click="openEditDialog(problem)">
+              <Button variant="ghost" size="sm" class="h-7 w-7 p-0" :aria-label="`Q${problem.problemNumber} 문제 수정`" @click="openEditDialog(problem)">
                 <SquarePen class="h-3.5 w-3.5 text-muted-foreground" />
               </Button>
             </div>

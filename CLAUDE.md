@@ -249,7 +249,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 ### 개별 문제 수정 (in-place PATCH)
 - `PATCH /api/exams/{examId}/problems/{problemId}` — Problem ID를 보존하며 제자리 수정
 - **Submission FK 안전**: Problem ID가 변경되지 않으므로 제출 결과가 있는 시험도 수정 가능 (PUT 전체 수정과 달리 409 미발생)
-- `ExamService.updateProblem()` — 문제 조회 → 소속 시험 검증 → 필드 업데이트 → `applyAnswer()` 호출
+- `ExamService.updateProblem()` — 문제 조회 → 소속 시험 검증 → 삭제된 시험 가드(`deleted=true` → 400) → 필드 업데이트 → `applyAnswer()` 호출
 - `applyAnswer()` — Answer 엔티티 생성/업데이트 공통 헬퍼 (createExam·updateProblem 양쪽에서 사용)
 
 #### ProblemEditDialog.vue
@@ -264,7 +264,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - `watch(open)` — Dialog 열릴 때 problem 데이터를 form으로 복사, 미리보기/에러 상태 초기화
 
 #### ExamDetail.vue 연동
-- 각 문제 카드 헤더에 SquarePen 편집 아이콘 버튼 (독립/그룹 부모/그룹 자식 3곳)
+- 각 문제 카드 헤더에 SquarePen 편집 아이콘 버튼 (독립/그룹 부모/그룹 자식 3곳, `aria-label`로 문제 번호 포함한 접근성 레이블 제공)
 - `openEditDialog(problem, isGroupParent, parentProblemNumber)` — 편집 대상 설정 + Dialog 열기
 - `handleProblemSaved(updated)` — 응답으로 받은 문제를 기존 배열에서 찾아 `Object.assign`으로 즉시 반영 (top-level + children 재귀 탐색)
 - `totalScore` computed — 문제 배점 합산을 동적 계산 (편집 후 즉시 갱신)
