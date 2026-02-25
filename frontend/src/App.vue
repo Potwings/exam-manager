@@ -24,7 +24,7 @@
             <span class="text-sm text-muted-foreground">{{ authStore.admin.username }}</span>
             <Popover v-if="!authStore.admin.initLogin" @update:open="(open) => { if (open) markAllRead() }">
               <PopoverTrigger as-child>
-                <Button variant="ghost" size="icon" class="relative">
+                <Button variant="ghost" size="icon" class="relative" :aria-label="unreadCount > 0 ? `알림 ${unreadCount}개 미확인` : '알림'">
                   <Bell class="h-4 w-4" />
                   <Badge
                     v-if="unreadCount > 0"
