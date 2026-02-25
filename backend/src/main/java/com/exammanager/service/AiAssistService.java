@@ -41,6 +41,11 @@ public class AiAssistService {
     private String buildUserPrompt(AiAssistRequest request) {
         StringBuilder sb = new StringBuilder();
 
+        // 그룹 문제의 부모 공통 지문이 있으면 [보기] 태그로 맨 앞에 배치 — GradingService와 동일 패턴
+        if (hasContent(request.getParentContent())) {
+            sb.append("[보기]\n").append(request.getParentContent()).append("\n\n");
+        }
+
         boolean isImprovement = hasContent(request.getCurrentContent()) || hasContent(request.getCurrentAnswer());
 
         // 기존 콘텐츠가 있으면 참고 자료로 먼저 제시 — 모델이 맥락을 파악한 뒤 지시를 처리하도록 함
