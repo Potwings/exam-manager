@@ -38,34 +38,29 @@
 
     <!-- 시험 응시 상태 -->
     <template v-else>
-      <!-- 헤더: 시험 제목 + 타이머 (sticky로 스크롤 시 상단 고정) -->
-      <div
-        class="sticky top-0 z-10 -mx-6 -mt-6 px-6 pt-6 pb-4 bg-background/95 backdrop-blur"
-        :class="{ 'border-b': formattedTime !== null }"
-      >
-        <div class="flex items-start justify-between">
-          <div>
-            <h1 class="text-2xl font-bold tracking-tight">{{ examStore.currentExam?.title || '시험' }}</h1>
-            <p class="text-muted-foreground">모든 문제에 답변한 후 제출하세요.</p>
-          </div>
-          <div class="flex items-end gap-3 shrink-0">
-            <!-- 관리자 호출 -->
-            <Button variant="destructive" size="sm" @click="handleCallAdmin" :disabled="callCooldown > 0 || isCallingAdmin" class="text-xs h-8 px-3 mb-1">
-              {{ callCooldown > 0 ? `호출 (${callCooldown}초)` : '관리자 호출' }}
+      <!-- 헤더: 페이지 진행(좌) + 타이머·관리자 호출(우, xl 미만만 표시) (sticky) -->
+      <div class="sticky top-0 z-10 -mx-6 -mt-6 px-6 py-2.5 bg-background/95 backdrop-blur border-b">
+        <div class="flex items-center justify-between gap-3">
+          <p v-if="pages.length > 0" class="text-sm text-muted-foreground whitespace-nowrap">
+            문제 {{ currentPageIndex + 1 }} / {{ pages.length }} · 답변 완료 {{ answeredCount }}/{{ pages.length
+            }}<template v-if="unansweredLabels.length > 5"> (미답변: {{ unansweredLabels.slice(0, 5).join(', ') }}... 총 {{ unansweredLabels.length }}개)</template
+            ><template v-else-if="unansweredLabels.length > 3"> (미답변: {{ unansweredLabels.join(', ') }} 총 {{ unansweredLabels.length }}개)</template
+            ><template v-else-if="unansweredLabels.length > 0"> (미답변: {{ unansweredLabels.join(', ') }})</template>
+          </p>
+          <p v-else class="text-sm text-muted-foreground">문제를 불러오는 중...</p>
+          <!-- xl 미만: 상단 헤더에 도구 표시 / xl 이상: 우측 Teleport로 이동 -->
+          <div class="flex items-center gap-2 shrink-0 xl:hidden">
+            <Button variant="destructive" size="sm" @click="handleCallAdmin" :disabled="callCooldown > 0 || isCallingAdmin" class="text-xs h-7 px-2.5">
+              {{ callCooldown > 0 ? `${callCooldown}초` : '관리자 호출' }}
             </Button>
-            <!-- 타이머 위젯 -->
             <div
               v-if="formattedTime !== null"
-              class="flex flex-col items-center py-2.5 px-4 rounded-xl border-2 shadow-lg transition-colors duration-500"
+              class="flex items-center gap-1.5 py-1 px-2.5 rounded-lg border-2 transition-colors duration-500"
               :class="timerBgClass"
             >
-              <span class="text-[10px] font-medium tracking-widest uppercase opacity-70">남은 시간</span>
-              <div class="flex items-center gap-1.5 mt-0.5">
-                <Timer class="h-4 w-4" :class="{ 'animate-pulse': remainingSeconds <= 60 }" />
-                <span class="font-mono text-2xl font-bold tabular-nums tracking-tight">{{ formattedTime }}</span>
-              </div>
-              <!-- 프로그레스 바 -->
-              <div class="w-full h-1 rounded-full mt-2 overflow-hidden" :class="progressTrackClass">
+              <Timer class="h-3.5 w-3.5" :class="{ 'animate-pulse': remainingSeconds <= 60 }" />
+              <span class="font-mono text-base font-bold tabular-nums tracking-tight">{{ formattedTime }}</span>
+              <div class="w-12 h-1 rounded-full overflow-hidden" :class="progressTrackClass">
                 <div
                   class="h-full rounded-full transition-all duration-1000 ease-linear"
                   :class="progressBarClass"
@@ -77,78 +72,47 @@
         </div>
       </div>
 
-      <template v-for="problem in examStore.problems" :key="problem.id">
-        <!-- 그룹 문제: 부모 지문 + 하위 문제들 -->
-        <Card v-if="problem.children && problem.children.length > 0">
+      <!-- 시험 제목 (스크롤 시 사라짐) -->
+      <h1 class="text-2xl font-bold tracking-tight">{{ examStore.currentExam?.title || '시험' }}</h1>
+
+      <!-- 단일 문제 페이지 렌더링 -->
+      <template v-if="currentPage">
+        <Card :key="currentPage.problemId">
           <CardHeader>
-            <CardTitle class="text-base">
-              <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
-              <Badge variant="secondary" class="text-xs">그룹</Badge>
-            </CardTitle>
+            <div class="flex items-center justify-between">
+              <CardTitle class="text-base">
+                <template v-if="currentPage.type === 'group-child'">
+                  <Badge variant="outline" class="mr-2">Q{{ currentPage.parent.problemNumber }}</Badge>
+                  <Badge variant="secondary" class="text-xs mr-2">그룹</Badge>
+                  <Badge variant="outline">Q{{ currentPage.parent.problemNumber }}-{{ currentPage.problem.problemNumber }}</Badge>
+                </template>
+                <template v-else>
+                  <Badge variant="outline" class="mr-2">Q{{ currentPage.problem.problemNumber }}</Badge>
+                </template>
+              </CardTitle>
+              <span class="text-sm text-muted-foreground tabular-nums">{{ currentPageIndex + 1 }} / {{ pages.length }}</span>
+            </div>
           </CardHeader>
           <CardContent class="space-y-4">
-            <!-- 부모 지문 -->
-            <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(problem.content)"></div>
-            <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ problem.content }}</pre>
-
-            <!-- 하위 문제들 -->
-            <div class="ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-4 space-y-4">
-              <div v-for="child in problem.children" :key="child.id" class="space-y-2">
-                <p class="text-sm font-medium">Q{{ problem.problemNumber }}-{{ child.problemNumber }}</p>
-                <div v-if="child.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(child.content)"></div>
-                <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ child.content }}</pre>
-
-                <!-- 답안 입력 -->
-                <div v-if="isCodeProblem(child)" class="border rounded-md overflow-hidden">
-                  <div class="flex items-center justify-between bg-muted px-3 py-1.5">
-                    <span class="text-xs text-muted-foreground font-mono">Code Editor</span>
-                    <select
-                      v-model="languages[child.id]"
-                      class="text-xs bg-transparent border rounded px-1.5 py-0.5"
-                    >
-                      <option value="java">Java</option>
-                      <option value="javascript">JavaScript</option>
-                      <option value="python">Python</option>
-                      <option value="sql">SQL</option>
-                    </select>
-                  </div>
-                  <div style="height: 200px">
-                    <vue-monaco-editor
-                      :value="answers[child.id] || ''"
-                      @change="(val) => answers[child.id] = val"
-                      :language="languages[child.id] || 'java'"
-                      theme="vs-dark"
-                      :options="editorOptions"
-                    />
-                  </div>
-                </div>
-                <Textarea
-                  v-else
-                  v-model="answers[child.id]"
-                  placeholder="답변을 작성하세요..."
-                  rows="3"
-                />
-              </div>
+            <!-- 그룹 자식: 공통 지문 표시 -->
+            <div v-if="currentPage.type === 'group-child'" class="border-l-2 border-blue-200 dark:border-blue-800 pl-4 pb-2">
+              <p class="text-xs font-medium text-muted-foreground mb-2">공통 지문</p>
+              <div v-if="currentPage.parent.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(currentPage.parent.content)"></div>
+              <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ currentPage.parent.content }}</pre>
             </div>
-          </CardContent>
-        </Card>
 
-        <!-- 독립 문제 -->
-        <Card v-else>
-          <CardHeader>
-            <CardTitle class="text-base">
-              <Badge variant="outline" class="mr-2">Q{{ problem.problemNumber }}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent class="space-y-3">
-            <div v-if="problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(problem.content)"></div>
-            <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ problem.content }}</pre>
+            <!-- 문제 내용 -->
+            <div>
+              <div v-if="currentPage.problem.contentType === 'MARKDOWN'" class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(currentPage.problem.content)"></div>
+              <pre v-else class="whitespace-pre-wrap text-sm leading-relaxed">{{ currentPage.problem.content }}</pre>
+            </div>
 
-            <div v-if="isCodeProblem(problem)" class="border rounded-md overflow-hidden">
+            <!-- 답안 입력: 코드 에디터 -->
+            <div v-if="isCodeProblem(currentPage.problem)" :key="'editor-' + currentPage.problemId" class="border rounded-md overflow-hidden">
               <div class="flex items-center justify-between bg-muted px-3 py-1.5">
                 <span class="text-xs text-muted-foreground font-mono">Code Editor</span>
                 <select
-                  v-model="languages[problem.id]"
+                  v-model="languages[currentPage.problemId]"
                   class="text-xs bg-transparent border rounded px-1.5 py-0.5"
                 >
                   <option value="java">Java</option>
@@ -159,18 +123,21 @@
               </div>
               <div style="height: 200px">
                 <vue-monaco-editor
-                  :value="answers[problem.id] || ''"
-                  @change="(val) => answers[problem.id] = val"
-                  :language="languages[problem.id] || 'java'"
+                  :key="'monaco-' + currentPage.problemId"
+                  :value="answers[currentPage.problemId] || ''"
+                  @change="(val) => answers[currentPage.problemId] = val"
+                  :language="languages[currentPage.problemId] || 'java'"
                   theme="vs-dark"
                   :options="editorOptions"
                 />
               </div>
             </div>
 
+            <!-- 답안 입력: 텍스트 영역 -->
             <Textarea
               v-else
-              v-model="answers[problem.id]"
+              :key="'textarea-' + currentPage.problemId"
+              v-model="answers[currentPage.problemId]"
               placeholder="답변을 작성하세요..."
               rows="3"
             />
@@ -178,14 +145,108 @@
         </Card>
       </template>
 
-      <div v-if="examStore.problems.length === 0" class="text-center py-12 text-muted-foreground">
+      <div v-else-if="pages.length === 0" class="text-center py-12 text-muted-foreground">
         문제를 불러오는 중...
       </div>
 
-      <div v-if="examStore.problems.length > 0" class="flex justify-end">
-        <Button size="lg" @click="handleSubmit" :disabled="loading">
-          {{ loading ? '제출 중...' : '답안 제출' }}
-        </Button>
+      <!-- 우측 도구 모음: xl 이상에서 main 바깥 우측에 표시 (Teleport) -->
+      <Teleport to="body">
+        <div class="fixed z-30 hidden xl:flex flex-col items-center gap-2 w-28" style="left: calc(50% + 33rem); top: 6rem;">
+          <!-- 타이머 위젯 -->
+          <div
+            v-if="formattedTime !== null"
+            class="w-full flex flex-col items-center py-2 px-3 rounded-xl border-2 shadow-lg transition-colors duration-500"
+            :class="timerBgClass"
+          >
+            <span class="text-[10px] font-medium tracking-widest uppercase opacity-70">남은 시간</span>
+            <div class="flex items-center gap-1 mt-0.5">
+              <Timer class="h-3.5 w-3.5" :class="{ 'animate-pulse': remainingSeconds <= 60 }" />
+              <span class="font-mono text-lg font-bold tabular-nums tracking-tight">{{ formattedTime }}</span>
+            </div>
+            <div class="w-full h-1 rounded-full mt-1.5 overflow-hidden" :class="progressTrackClass">
+              <div
+                class="h-full rounded-full transition-all duration-1000 ease-linear"
+                :class="progressBarClass"
+                :style="{ width: progressPercent + '%' }"
+              />
+            </div>
+          </div>
+          <!-- 관리자 호출 -->
+          <Button variant="destructive" size="sm" @click="handleCallAdmin" :disabled="callCooldown > 0 || isCallingAdmin" class="text-xs h-8 px-2 w-full">
+            {{ callCooldown > 0 ? `${callCooldown}초` : '관리자 호출' }}
+          </Button>
+        </div>
+      </Teleport>
+
+      <!-- 네비게이션 바 (full-width, 하단 고정) -->
+      <div v-if="pages.length > 0" class="sticky bottom-0 -mx-6 -mb-6 px-6 py-3 bg-background/95 backdrop-blur border-t">
+        <div class="flex items-center justify-between gap-2">
+          <!-- 이전 버튼 -->
+          <Button variant="outline" size="sm" @click="goToPrevPage" :disabled="currentPageIndex === 0" class="shrink-0">
+            <ChevronLeft class="h-4 w-4 mr-1" />
+            이전
+          </Button>
+
+          <!-- 페이지 선택 (가운데) -->
+          <Popover v-model:open="showPagePicker">
+            <PopoverTrigger as-child>
+              <Button variant="outline" size="sm" class="font-mono tabular-nums min-w-[5rem]">
+                {{ currentPageIndex + 1 }} / {{ pages.length }}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent class="w-auto p-3" align="center" side="top" :side-offset="8">
+              <p class="text-xs text-muted-foreground mb-2">문제 번호를 선택하세요</p>
+              <div class="grid gap-1.5" :style="{ gridTemplateColumns: `repeat(${Math.min(pages.length, 6)}, 1fr)` }">
+                <button
+                  v-for="(page, idx) in pages" :key="page.problemId"
+                  class="h-8 min-w-[2.5rem] px-1.5 text-xs rounded-md border transition-colors inline-flex items-center justify-center gap-0.5"
+                  :class="[
+                    idx === currentPageIndex
+                      ? 'bg-primary text-primary-foreground border-primary font-semibold'
+                      : (answers[page.problemId] || '').trim()
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                        : 'bg-background text-muted-foreground border-input hover:bg-accent'
+                  ]"
+                  @click="goToPage(idx); showPagePicker = false"
+                >
+                  <Check v-if="(answers[page.problemId] || '').trim() && idx !== currentPageIndex" class="h-3 w-3 shrink-0" />
+                  {{ page.label }}
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <!-- 다음 + 제출 버튼 -->
+          <div class="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" @click="goToNextPage" :disabled="currentPageIndex >= pages.length - 1">
+              다음
+              <ChevronRight class="h-4 w-4 ml-1" />
+            </Button>
+            <AlertDialog v-model:open="showSubmitDialog">
+              <AlertDialogTrigger as-child>
+                <Button size="sm" :disabled="loading">
+                  {{ loading ? '제출 중...' : '답안 제출' }}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>답안을 제출하시겠습니까?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    <span>답변 완료 {{ answeredCount }}/{{ pages.length }}문제</span>
+                    <template v-if="unansweredLabels.length > 0">
+                      <br><span class="text-orange-500">미답변 {{ unansweredLabels.length }}개: {{ unansweredLabels.length <= 5 ? unansweredLabels.join(', ') : unansweredLabels.slice(0, 5).join(', ') + '...' }}</span>
+                    </template>
+                    <br><span>제출 후에는 수정할 수 없습니다.</span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogAction @click="handleSubmit">제출</AlertDialogAction>
+                  <AlertDialogCancel>취소</AlertDialogCancel>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
       </div>
     </template>
   </div>
@@ -200,9 +261,14 @@ import { useExamStore } from '@/stores/examStore'
 import { submitAnswers, createExamSession, callAdmin } from '@/api'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction
+} from '@/components/ui/alert-dialog'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Timer } from 'lucide-vue-next'
+import { Timer, ChevronLeft, ChevronRight, Check } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -217,11 +283,16 @@ const timeExpired = ref(false)
 const sessionError = ref(false)
 const callCooldown = ref(0)
 const isCallingAdmin = ref(false)
+const showSubmitDialog = ref(false)
+const showPagePicker = ref(false)
 let callCooldownTimer = null
 
 // 타이머 관련 상태
 const remainingSeconds = ref(null)
 let timerId = null
+
+// 페이지 탐색 상태
+const currentPageIndex = ref(0)
 
 const editorOptions = {
   minimap: { enabled: false },
@@ -232,6 +303,52 @@ const editorOptions = {
   tabSize: 4,
   wordWrap: 'on'
 }
+
+// 문제를 페이지 단위로 변환 (1문제 = 1페이지, 그룹 자식은 개별 페이지)
+const pages = computed(() => {
+  const result = []
+  for (const p of examStore.problems) {
+    if (p.children && p.children.length > 0) {
+      for (const child of p.children) {
+        result.push({
+          type: 'group-child',
+          parent: p,
+          problem: child,
+          problemId: child.id,
+          label: `${p.problemNumber}-${child.problemNumber}`
+        })
+      }
+    } else {
+      result.push({
+        type: 'independent',
+        parent: null,
+        problem: p,
+        problemId: p.id,
+        label: `${p.problemNumber}`
+      })
+    }
+  }
+  return result
+})
+
+// 현재 페이지 객체 (bounds 보호)
+const currentPage = computed(() => {
+  const idx = currentPageIndex.value
+  if (idx >= 0 && idx < pages.value.length) return pages.value[idx]
+  return pages.value[0] || null
+})
+
+// 답변 완료된 페이지 수
+const answeredCount = computed(() => {
+  return pages.value.filter(p => (answers[p.problemId] || '').trim() !== '').length
+})
+
+// 미답변 문제 번호 목록 (라벨 배열)
+const unansweredLabels = computed(() => {
+  return pages.value
+    .filter(p => (answers[p.problemId] || '').trim() === '')
+    .map(p => p.label)
+})
 
 // 답안 입력 가능한 문제만 추출 (독립 문제 + 그룹의 하위 문제)
 const answerableProblems = computed(() => {
@@ -280,6 +397,32 @@ const progressPercent = computed(() => {
   if (totalSeconds.value === null || totalSeconds.value === 0) return 100
   return Math.max(0, (remainingSeconds.value / totalSeconds.value) * 100)
 })
+
+// 페이지 네비게이션 함수
+function goToNextPage() {
+  if (currentPageIndex.value < pages.value.length - 1) {
+    currentPageIndex.value++
+    scrollToTop()
+  }
+}
+
+function goToPrevPage() {
+  if (currentPageIndex.value > 0) {
+    currentPageIndex.value--
+    scrollToTop()
+  }
+}
+
+function goToPage(index) {
+  if (index >= 0 && index < pages.value.length) {
+    currentPageIndex.value = index
+    scrollToTop()
+  }
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
 function startTimer(seconds) {
   remainingSeconds.value = seconds
@@ -367,6 +510,18 @@ onMounted(async () => {
     }
   } catch { /* 파싱 실패 시 무시 */ }
 
+  // localStorage에서 페이지 위치 복원 (새로고침 대응)
+  const pageKey = `exam_${examId}_page`
+  try {
+    const savedPage = localStorage.getItem(pageKey)
+    if (savedPage !== null) {
+      const pageIdx = parseInt(savedPage, 10)
+      if (!isNaN(pageIdx) && pageIdx >= 0 && pageIdx < pages.value.length) {
+        currentPageIndex.value = pageIdx
+      }
+    }
+  } catch { /* 파싱 실패 시 무시 */ }
+
   // 시간 제한이 있는 시험: 세션 생성 후 타이머 시작
   if (examStore.currentExam?.timeLimit) {
     try {
@@ -412,6 +567,14 @@ watch(answers, (val) => {
     localStorage.setItem(`exam_${examId}_answers`, JSON.stringify(val))
   }
 }, { deep: true })
+
+// currentPageIndex 변경 시 localStorage에 저장 (새로고침 대응)
+watch(currentPageIndex, (val) => {
+  const examId = route.params.examId
+  if (examId) {
+    localStorage.setItem(`exam_${examId}_page`, String(val))
+  }
+})
 
 // 페이지 이탈 방지: 브라우저 새로고침/탭 닫기 시 확인 다이얼로그
 function handleBeforeUnload(e) {
@@ -484,6 +647,7 @@ async function handleSubmit() {
 
     submitted.value = true
     localStorage.removeItem(`exam_${route.params.examId}_answers`)
+    localStorage.removeItem(`exam_${route.params.examId}_page`)
     authStore.clear()
   } catch (e) {
     if (e.response?.status === 409) {
@@ -491,12 +655,14 @@ async function handleSubmit() {
       router.push('/exam/login')
     } else if (e.response?.status === 403) {
       localStorage.removeItem(`exam_${route.params.examId}_answers`)
+      localStorage.removeItem(`exam_${route.params.examId}_page`)
       authStore.clear()
       timeExpired.value = true
       submitted.value = true
     } else {
       if (timeExpired.value) {
         localStorage.removeItem(`exam_${route.params.examId}_answers`)
+        localStorage.removeItem(`exam_${route.params.examId}_page`)
         authStore.clear()
         submitted.value = true
       } else {

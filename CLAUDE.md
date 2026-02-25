@@ -209,10 +209,35 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - 수정/복제 모드: `p.children.length > 0`으로 `isGroup` 자동 판별
 - 하위 문제 MARKDOWN 타입 선택 시 미리보기/편집 토글 지원 (독립 문제와 동일 패턴)
 
-#### 응시자 UI (`ExamTake.vue`)
-- 그룹 문제: 부모 지문 Card + 하위 문제별 답안 입력 (border-l 인덴트)
+#### 응시자 UI (`ExamTake.vue`) — 페이지별 문제 탐색
+- **1문제 = 1페이지**: 한 번에 하나의 문제만 표시, 스크롤 대신 페이지 전환 방식
+- **그룹 자식 페이지**: 부모 공통 지문이 항상 함께 표시됨 ("공통 지문" 라벨 + border-l 인덴트)
+- `pages` computed: 독립 문제 → `{ type: 'independent' }`, 그룹 자식 → `{ type: 'group-child', parent }` 변환
+- `currentPageIndex` ref + `currentPage` computed: 현재 표시 중인 페이지
 - `answerableProblems` computed: 독립 문제 + 그룹 자식 문제만 추출하여 답안 수집
 - `answers[child.id]`로 하위 문제별 독립 입력
+
+##### 네비게이션 바 (하단 sticky)
+```
+[◀ 이전]     [N / M]     [다음 ▶] [답안 제출]
+```
+- **이전/다음 버튼**: 첫 페이지에서 이전 비활성화, 마지막 페이지에서 다음 비활성화
+- **페이지 선택 Popover**: 가운데 `N / M` 버튼 클릭 시 전체 문제 번호 그리드 표시 (shadcn Popover)
+  - 현재 문제: primary 배경, 답변 완료: 초록 배경 + 체크 아이콘, 미답변: 기본 스타일
+  - 그룹 자식은 `Q13-1` 등의 라벨로 구분
+  - 6열 그리드, 클릭 시 해당 페이지로 바로 이동
+- **제출 버튼**: 모든 페이지에서 항상 표시 (마지막 페이지에만 표시하지 않음)
+
+##### 제출 확인 다이얼로그 (AlertDialog)
+- 답안 제출 버튼 클릭 시 확인 다이얼로그 표시
+- 답변 현황: `답변 완료 N/M문제`
+- 미답변 번호: 주황색으로 표시 (5개까지 + 말줄임)
+- 경고: "제출 후에는 수정할 수 없습니다."
+- 버튼 순서: [제출] [취소]
+
+##### 헤더 (상단 sticky)
+- 페이지 진행: `문제 N / M · 답변 완료 N/M (미답변: ...)`
+- 미답변 표시 규칙: 3개 이하 → 번호 나열, 4~5개 → 번호 + 총 N개, 6개 이상 → 앞 5개 + `...` 총 N개
 
 #### 시험 상세 (`ExamDetail.vue`)
 - 그룹 문제: "그룹" Badge + 공통 지문 + 하위 문제 카드 (인덴트, 개별 배점/채점기준)
@@ -300,7 +325,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - 새로고침 시에도 서버 기준 시간이 이어짐 (클라이언트 조작 불가)
 
 #### 타이머 UI (`ExamTake.vue`)
-- **sticky 헤더**: 시험 제목 + 타이머 위젯이 `sticky top-0`으로 스크롤 시 상단 고정
+- **반응형 배치**: xl 미만 → 상단 sticky 헤더에 타이머 + 관리자 호출 표시 (`xl:hidden`), xl 이상 → `<Teleport to="body">`로 본문 우측 사이드바에 고정 (`hidden xl:flex`, `position: fixed`, `left: calc(50% + 33rem)`)
 - **카운트다운**: `setInterval` 1초 간격, `MM:SS` monospace 포맷 (`tabular-nums`)
 - **색상 변화**: 평소 다크(slate-900) → 5분 이하 amber → 1분 이하 red + animate-pulse
 - **프로그레스 바**: 전체 시간 대비 남은 시간 비율, 색상 연동
@@ -484,7 +509,8 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 - **수험자 인증**: `localStorage.examinee` — 로그인 시 저장, 새로고침/브라우저 재시작 시 복원, 제출 후 삭제
 - **답안 자동 저장**: `localStorage.exam_{examId}_answers` — `watch(answers, ..., { deep: true })`로 변경 시마다 저장
 - **답안 복원**: `onMounted`에서 문제 로드 후 `Object.assign(answers, saved)`로 복원
-- **정리**: `handleSubmit()` 성공 시 답안 키 삭제 + `authStore.clear()`로 수험자 키 삭제
+- **페이지 위치 저장**: `localStorage.exam_{examId}_page` — `watch(currentPageIndex)`로 변경 시마다 저장, `onMounted`에서 복원 (bounds 검증)
+- **정리**: `handleSubmit()` 성공 시 답안 키 + 페이지 키 삭제 + `authStore.clear()`로 수험자 키 삭제
 - **타이머**: 서버 기반 ExamSession이므로 별도 저장 불필요 (새로고침 시 서버에서 남은 시간 재계산)
 - **페이지 이탈 방지**: `beforeunload`(브라우저 새로고침/탭 닫기) + `onBeforeRouteLeave`(Vue Router 이동) — 제출 완료 전에만 확인 다이얼로그 표시, 제출 후 해제
 
@@ -591,4 +617,5 @@ ExamTake.vue "관리자 호출" 버튼 클릭
 - [x] 마크다운 코드 블록 syntax highlighting — highlight.js (github-dark 테마, Java/JS/Python/SQL)
 - [x] ExamDetail 개별 문제 수정 — ProblemEditDialog + in-place PATCH (Problem ID 보존, Submission FK 안전)
 - [x] 코드 에디터 기본 언어 설정 — 문제별 codeLanguage 필드 (관리자 설정 → 수험자 기본 언어 적용)
+- [x] 페이지별 문제 탐색 — 1문제=1페이지 전환, 그룹 자식에 공통 지문 표시, Popover 페이지 선택, 제출 확인 다이얼로그
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)
