@@ -1,6 +1,7 @@
 package com.exammanager.service;
 
 import com.exammanager.dto.ExamCreateRequest;
+import com.exammanager.dto.ProblemUpdateRequest;
 import com.exammanager.entity.Answer;
 import com.exammanager.entity.Exam;
 import com.exammanager.entity.Problem;
@@ -138,6 +139,61 @@ public class ExamService {
         return submissionRepository.existsByProblemExamId(examId);
     }
 
+    @Transactional
+    public Problem updateProblem(Long examId, Long problemId, ProblemUpdateRequest request) {
+        Problem problem = problemRepository.findById(problemId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "문제를 찾을 수 없습니다: " + problemId));
+
+        if (!problem.getExam().getId().equals(examId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "해당 시험에 속한 문제가 아닙니다.");
+        }
+
+        if (Boolean.TRUE.equals(problem.getExam().getDeleted())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "삭제된 시험은 수정할 수 없습니다.");
+        }
+
+        boolean isGroupParent = problem.getChildren() != null && !problem.getChildren().isEmpty();
+
+        problem.setContent(request.getContent());
+        problem.setContentType(request.getContentType() != null ? request.getContentType() : "TEXT");
+        problem.setCodeEditor(Boolean.TRUE.equals(request.getCodeEditor()));
+
+        if (!isGroupParent) {
+            if (request.getAnswerContent() == null || request.getAnswerContent().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "채점 기준은 필수입니다.");
+            }
+            applyAnswer(problem, request.getAnswerContent(), request.getScore());
+        }
+
+        return problemRepository.save(problem);
+    }
+
+    private void applyAnswer(Problem problem, String answerContent, Integer score) {
+        if (answerContent == null || answerContent.isBlank()) return;
+
+        if (score == null || score <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "문제 " + problem.getProblemNumber() + "번의 배점은 1점 이상이어야 합니다.");
+        }
+
+        Answer answer = problem.getAnswer();
+        if (answer != null) {
+            answer.setContent(answerContent);
+            answer.setScore(score);
+        } else {
+            answer = Answer.builder()
+                    .content(answerContent)
+                    .score(score)
+                    .problem(problem)
+                    .build();
+            problem.setAnswer(answer);
+        }
+    }
+
     private Problem buildProblem(ExamCreateRequest.ProblemInput pi, Exam exam) {
         Problem problem = Problem.builder()
                 .problemNumber(pi.getProblemNumber())
@@ -148,18 +204,7 @@ public class ExamService {
                 .build();
 
         // answerContent가 있는 경우에만 Answer 생성 (지문 전용 부모는 스킵)
-        if (pi.getAnswerContent() != null && !pi.getAnswerContent().isBlank()) {
-            if (pi.getScore() == null || pi.getScore() <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "문제 " + pi.getProblemNumber() + "번의 배점은 1점 이상이어야 합니다.");
-            }
-            Answer answer = Answer.builder()
-                    .content(pi.getAnswerContent())
-                    .score(pi.getScore())
-                    .problem(problem)
-                    .build();
-            problem.setAnswer(answer);
-        }
+        applyAnswer(problem, pi.getAnswerContent(), pi.getScore());
 
         return problem;
     }

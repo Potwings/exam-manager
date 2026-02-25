@@ -4,7 +4,9 @@ import com.exammanager.dto.ExamCreateRequest;
 import com.exammanager.dto.ExamDetailResponse;
 import com.exammanager.dto.ExamResponse;
 import com.exammanager.dto.ProblemResponse;
+import com.exammanager.dto.ProblemUpdateRequest;
 import com.exammanager.entity.Exam;
+import com.exammanager.entity.Problem;
 import com.exammanager.service.ExamService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +61,15 @@ public class ExamController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         examService.deleteExam(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{examId}/problems/{problemId}")
+    public ResponseEntity<ProblemResponse> updateProblem(
+            @PathVariable Long examId,
+            @PathVariable Long problemId,
+            @Valid @RequestBody ProblemUpdateRequest request) {
+        Problem updated = examService.updateProblem(examId, problemId, request);
+        return ResponseEntity.ok(ProblemResponse.from(updated, true));
     }
 
     @PatchMapping("/{id}/activate")

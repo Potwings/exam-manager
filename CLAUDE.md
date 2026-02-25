@@ -24,7 +24,8 @@ exam-scorer/
 │   └── src/
 │       ├── api/             # Axios 인스턴스 + API 호출 함수
 │       ├── assets/          # index.css (Tailwind + shadcn 테마)
-│       ├── components/ui/   # shadcn-vue 컴포넌트 (npx shadcn-vue로 관리)
+│       ├── components/      # 커스텀 컴포넌트 (ProblemEditDialog 등)
+│       │   └── ui/          # shadcn-vue 컴포넌트 (npx shadcn-vue로 관리)
 │       ├── composables/     # Vue 컴포저블 (useNotifications)
 │       ├── lib/             # utils.ts (cn 헬퍼), markdown.js (markdown-it 래퍼)
 │       ├── stores/          # Pinia (authStore, examStore)
@@ -241,9 +242,32 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
   - `/admin/exams/create?from=:id` — 기존 시험 복제하여 새 시험 생성
 
 ### 시험 조회
-- `/admin/exams/:id` — ExamDetail 읽기 전용 상세 페이지
+- `/admin/exams/:id` — ExamDetail 상세 페이지 (개별 문제 편집 가능)
 - 수정 버튼 클릭 시: 제출 결과 없으면 수정 페이지로, 있으면 복제 안내 배너 노출
 - 목록에서 행 클릭으로 상세 페이지 이동
+
+### 개별 문제 수정 (in-place PATCH)
+- `PATCH /api/exams/{examId}/problems/{problemId}` — Problem ID를 보존하며 제자리 수정
+- **Submission FK 안전**: Problem ID가 변경되지 않으므로 제출 결과가 있는 시험도 수정 가능 (PUT 전체 수정과 달리 409 미발생)
+- `ExamService.updateProblem()` — 문제 조회 → 소속 시험 검증 → 삭제된 시험 가드(`deleted=true` → 400) → 필드 업데이트 → `applyAnswer()` 호출
+- `applyAnswer()` — Answer 엔티티 생성/업데이트 공통 헬퍼 (createExam·updateProblem 양쪽에서 사용)
+
+#### ProblemEditDialog.vue
+- shadcn Dialog 기반 편집 컴포넌트 (`src/components/ProblemEditDialog.vue`)
+- Props: `open`, `problem`, `examId`, `isGroupParent`, `parentProblemNumber`
+- Emits: `update:open`, `saved(updatedProblem)`
+- **그룹 부모 모드**: 콘텐츠 타입 + 문제 내용만 표시 (채점기준/배점/코드에디터 숨김), 설명 "공통 지문을 수정합니다"
+- **독립/그룹 자식 모드**: 콘텐츠 타입, 코드 에디터 토글, 문제 내용, 채점 기준, 배점 전 필드 표시
+- **displayNumber**: 그룹 자식은 `Q{부모}-{자식}` 형식 (예: Q13-1)
+- **canSave 검증**: content 필수, 비그룹은 answerContent + score > 0 필수
+- **마크다운 미리보기**: contentType=MARKDOWN 시 편집/미리보기 토글 (renderMarkdown 사용)
+- `watch(open)` — Dialog 열릴 때 problem 데이터를 form으로 복사, 미리보기/에러 상태 초기화
+
+#### ExamDetail.vue 연동
+- 각 문제 카드 헤더에 SquarePen 편집 아이콘 버튼 (독립/그룹 부모/그룹 자식 3곳, `aria-label`로 문제 번호 포함한 접근성 레이블 제공)
+- `openEditDialog(problem, isGroupParent, parentProblemNumber)` — 편집 대상 설정 + Dialog 열기
+- `handleProblemSaved(updated)` — 응답으로 받은 문제를 기존 배열에서 찾아 `Object.assign`으로 즉시 반영 (top-level + children 재귀 탐색)
+- `totalScore` computed — 문제 배점 합산을 동적 계산 (편집 후 즉시 갱신)
 
 ### 답안 노출 제어
 - `ProblemResponse.from(problem)` — 답안 미포함 (수험자용)
@@ -311,6 +335,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 | POST | `/api/exams` | ExamController | 시험 생성 — Web UI JSON (ExamCreateRequest) |
 | POST | `/api/exams/upload` | ExamController | 시험 생성 — docx 업로드 (multipart, 추후 UI 연결 예정) |
 | PUT | `/api/exams/{id}` | ExamController | 시험 수정 — 제출 결과 없을 때만 (409 CONFLICT) |
+| PATCH | `/api/exams/{examId}/problems/{problemId}` | ExamController | 개별 문제 제자리 수정 (Problem ID 보존) — **Admin** |
 | DELETE | `/api/exams/{id}` | ExamController | 시험 소프트 삭제 (deleted=true) |
 | PATCH | `/api/exams/{id}/activate` | ExamController | 시험 활성화 (동시 1개만) |
 | POST | `/api/admin/login` | AdminController | 관리자 로그인 (세션 생성) — **Public** |
@@ -337,6 +362,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 | 클래스 | 용도 |
 |--------|------|
 | ExamCreateRequest | 시험 생성/수정 요청 (title, **timeLimit**, problems[{problemNumber, content, **contentType**, **codeEditor**, answerContent, score, **children**}]) |
+| ProblemUpdateRequest | 개별 문제 수정 요청 (@NotBlank content, contentType, codeEditor, answerContent, score) — 그룹 부모는 content만, 독립/자식은 전 필드 |
 | ExamResponse | 시험 목록 응답 (id, title, problemCount, totalScore, **active**, **timeLimit**, createdAt) — problemCount는 최상위 문제만 카운트 |
 | ExamDetailResponse | 시험 상세 응답 (problems, **hasSubmissions**, **timeLimit** 포함) — problems는 최상위만 필터 (자식은 재귀 포함) |
 | ProblemResponse | 문제 응답 (id, problemNumber, content, **contentType**, **codeEditor**, answerContent?, score?, **children**) — 답안은 관리자용만 포함, children 재귀 매핑 |
@@ -562,4 +588,5 @@ ExamTake.vue "관리자 호출" 버튼 클릭
 - [x] 관리자 호출 — 수험자가 시험 중 관리자에게 도움 요청 (SSE admin-call 이벤트 + 30초 쿨다운)
 - [x] 그룹 문제(꼬리 문제) — 부모-자식 문제 구조 (생성/수정/복제/응시/채점/결과 표시)
 - [x] 마크다운 코드 블록 syntax highlighting — highlight.js (github-dark 테마, Java/JS/Python/SQL)
+- [x] ExamDetail 개별 문제 수정 — ProblemEditDialog + in-place PATCH (Problem ID 보존, Submission FK 안전)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)
