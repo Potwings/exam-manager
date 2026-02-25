@@ -169,7 +169,7 @@ public class SubmissionService {
                                     .orElse(null))
                             .build();
                 })
-                .sorted(Comparator.comparingInt(ScoreSummaryResponse::getTotalScore).reversed())
+                .sorted(Comparator.comparing(ScoreSummaryResponse::getExamineeId).reversed())
                 .toList();
     }
 
