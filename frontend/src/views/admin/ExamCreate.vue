@@ -239,13 +239,34 @@
 
               <!-- 하위 문제 내용 -->
               <div class="space-y-1">
-                <Label :for="'content-' + child.id" class="text-sm">문제 내용</Label>
+                <div class="flex items-center justify-between">
+                  <Label :for="'content-' + child.id" class="text-sm">문제 내용</Label>
+                  <button
+                    v-if="child.contentType === 'MARKDOWN'"
+                    type="button"
+                    class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    @click="togglePreview(child.id, 'content')"
+                  >
+                    {{ previewState[child.id]?.content ? '편집' : '미리보기' }}
+                  </button>
+                </div>
+                <div v-if="child.contentType === 'MARKDOWN' && previewState[child.id]?.content" class="border rounded-md p-3 min-h-[80px] bg-muted/30">
+                  <div class="prose prose-sm max-w-none dark:prose-invert" v-html="renderMd(child.content)"></div>
+                </div>
                 <Textarea
+                  v-else-if="child.contentType === 'MARKDOWN'"
+                  :id="'content-' + child.id"
+                  v-model="child.content"
+                  placeholder="하위 문제를 마크다운으로 입력하세요..."
+                  rows="3"
+                  class="font-mono text-sm"
+                />
+                <Textarea
+                  v-else
                   :id="'content-' + child.id"
                   v-model="child.content"
                   placeholder="하위 문제를 입력하세요..."
                   rows="3"
-                  :class="{ 'font-mono text-sm': child.contentType === 'MARKDOWN' }"
                 />
               </div>
 
