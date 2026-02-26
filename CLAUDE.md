@@ -164,16 +164,21 @@ ollama:
 - `OllamaClient.java` — RestTemplate 기반 HTTP 클라이언트 (`/api/chat`, `format: json`, `stream: false`, `temperature: 0.1`)
 
 ### 프롬프트 구조 (`GradingService.java`)
-- **System**: 엄격한 채점관 역할. 부분 점수 규칙, 필수 키워드(뉘앙스 일치 허용), 감점 규칙 준수 지시
+- **System**: 공정한 채점관 역할. 마크다운 구조(`#`/`##`/`---`)로 섹션 구분
+  - 채점 원칙: 내용이 맞으면 정답 인정, 모범 답안은 참고 사항, 뉘앙스 일치 허용
+  - annotatedAnswer 작성 규칙: `[정답]`/`[오답]`/`[부분]` 태그, 태그 사이 공백 한 칸, 채점 사유 혼입 금지
+  - feedback 작성 규칙: 1~2문장, 만점/부분/0점별 예시 가이드
+  - 응답 형식: JSON만 응답 (JSON 외 텍스트 불포함 명시)
 - **User**: `[문제]` + `[채점 기준](배점)` + `[수험자 답안]`
 - **그룹 자식 문제**: 부모 지문을 `[보기]` 태그로 감싸서 `[문제]` 앞에 포함 (`[보기]\n{부모지문}\n\n[문제]\n{자식내용}`)
-- **응답**: `{"earnedScore": N, "feedback": "채점 근거"}`
+- **응답**: `{"earnedScore": N, "annotatedAnswer": "태그가 적용된 답안", "feedback": "채점 근거"}`
 
 ### 채점 기준
 - 관리자가 Web UI(`/admin/exams/create`)에서 문제별 채점 기준(루브릭)을 직접 입력
-- `[필수 키워드]`: 핵심 개념 (정확 일치 아닌 의미/뉘앙스 유사 시 인정)
-- `[감점 규칙]`: 키워드만 나열 시 부분 점수, 설명 없이 만점 불가 등
-- 코드 결과 문제는 전부 맞춰야 점수 부여
+- 채점 기준과 정확히 일치하지 않아도 내용이 맞으면 정답 인정
+- 핵심 개념: 의미/뉘앙스 유사 시 인정 (정확 일치 불요)
+- 감점 규칙: 키워드만 나열 시 부분 점수, 채점 기준 내 조건 우선
+- SQL 문제: 실행 결과 정확해야 점수 부여 / 코드 문제: 핵심 로직 맞으면 부분 점수
 
 ### 시드 데이터 (seed.sql)
 - 기존 하드코딩(DataInitializer.java) 데이터를 `backend/src/main/resources/data/seed.sql`로 추출
@@ -402,7 +407,7 @@ Q5. [보기] 다음 테이블 구조를 보고 아래 물음에 답하시오. (�
 | SubmissionRequest | 답안 제출 요청 (examineeId, examId, answers[]) |
 | SubmissionUpdateRequest | 채점 결과 수정 요청 (earnedScore, feedback, **annotatedAnswer**) |
 | SubmissionResultResponse | 채점 결과 응답 (totalScore, maxScore, submissions[{..., **feedback**, **codeAnswer**, **codeLanguage**, **parentProblemId**, **parentProblemNumber**, **parentProblemContent**, **parentProblemContentType**}]) |
-| ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, **gradingComplete**, submittedAt) |
+| ScoreSummaryResponse | 점수 집계 응답 (examineeName, **examineeBirthDate**, totalScore, maxScore, **gradingComplete**, submittedAt) — examineeId 내림차순 정렬 (최근 응시자 먼저) |
 | ExamSessionRequest | 시험 세션 생성 요청 (examineeId, examId) |
 | ExamSessionResponse | 시험 세션 응답 (remainingSeconds — null이면 시간 제한 없음) |
 | AdminCallRequest | 관리자 호출 요청 (examineeId, examId, examineeName) |
