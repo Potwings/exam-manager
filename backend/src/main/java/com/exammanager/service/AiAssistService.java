@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AiAssistService {
 
-    private final OllamaClient ollamaClient;
+    private final LlmClient llmClient;
 
     private static final String SYSTEM_PROMPT = """
             기술 면접 필기시험 출제 전문가. 규칙:
@@ -23,14 +23,14 @@ public class AiAssistService {
             """;
 
     public AiAssistResponse generate(AiAssistRequest request) {
-        if (!ollamaClient.isAvailable()) {
-            throw new IllegalStateException("Ollama 서비스를 사용할 수 없습니다.");
+        if (!llmClient.isAvailable()) {
+            throw new IllegalStateException("AI 서비스를 사용할 수 없습니다.");
         }
 
         String userPrompt = buildUserPrompt(request);
         log.info("AI Assist request: instruction={}", request.getInstruction());
 
-        JsonNode result = ollamaClient.chat(SYSTEM_PROMPT, userPrompt);
+        JsonNode result = llmClient.chat(SYSTEM_PROMPT, userPrompt);
         if (result == null) {
             throw new RuntimeException("AI 응답을 받지 못했습니다. 다시 시도해주세요.");
         }

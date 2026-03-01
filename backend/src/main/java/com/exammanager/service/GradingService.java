@@ -19,7 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class GradingService {
 
-    private final OllamaClient ollamaClient;
+    private final LlmClient llmClient;
     private final SubmissionRepository submissionRepository;
     private final NotificationService notificationService;
     private final ExamineeRepository examineeRepository;
@@ -126,7 +126,7 @@ public class GradingService {
         }
 
         try {
-            if (ollamaClient.isAvailable()) {
+            if (llmClient.isAvailable()) {
                 gradeWithLlm(submission, answer);
                 return;
             }
@@ -207,7 +207,7 @@ public class GradingService {
                 위 답안을 채점 기준에 따라 채점하고 JSON으로 응답하세요.""",
                 problemContent, maxScore, answerContent, submittedAnswer);
 
-        JsonNode result = ollamaClient.chat(SYSTEM_PROMPT, userPrompt);
+        JsonNode result = llmClient.chat(SYSTEM_PROMPT, userPrompt);
 
         if (result != null && result.has("earnedScore")
                 && result.get("earnedScore").isNumber()) {

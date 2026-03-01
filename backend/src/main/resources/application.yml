@@ -28,9 +28,17 @@ app:
   cors:
     allowed-origins:
       - http://localhost:5173
+      - http://exam.crinity.com:5173
 
 ollama:
   base-url: http://localhost:11434
   model: gemma3
   timeout: 120
-  enabled: true
+
+openai:
+  api-key: ""
+  model: gpt-5.2
+  timeout: 120
+
+llm:
+  provider: openai    # ollama, openai, none

@@ -1,6 +1,6 @@
 # ExamManager
 
-기술 면접 필기 시험 관리 서비스. 관리자가 Web UI에서 시험 문제/채점기준을 등록하면 시험자가 접속하여 문제를 풀고, 제출 시 Ollama LLM으로 자동 채점한다.
+기술 면접 필기 시험 관리 서비스. 관리자가 Web UI에서 시험 문제/채점기준을 등록하면 시험자가 접속하여 문제를 풀고, 제출 시 LLM으로 자동 채점한다.
 
 ## Tech Stack
 
@@ -12,7 +12,7 @@
 - **마크다운**: markdown-it (문제 마크다운 렌더링) + @tailwindcss/typography (prose 스타일) + highlight.js (코드 블록 syntax highlighting)
 - **아이콘**: lucide-vue-next
 - **인증**: Spring Security 6 (세션 기반, BCrypt)
-- **LLM 채점**: Ollama (gpt-oss:20b 모델, 로컬 `http://localhost:11434`)
+- **LLM 채점**: LlmClient 인터페이스 (Ollama / OpenAI 전환 가능, `llm.provider` 설정)
 - **코드 에디터**: Monaco Editor (`@guolao/vue-monaco-editor` + `monaco-editor`, 로컬 번들)
 - **알림**: vue-sonner (Toast) + SSE (Server-Sent Events) + Browser Notification API
 
@@ -35,9 +35,9 @@ exam-scorer/
 │       └── router/          # Vue Router
 ├── backend/                 # Spring Boot
 │   └── src/main/java/com/exammanager/
-│       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, CorsProperties, AdminInitializer, InitLoginFilter
+│       ├── config/          # SecurityConfig, WebConfig, OllamaProperties, OpenAiProperties, LlmProperties, LlmClientConfig, CorsProperties, AdminInitializer, InitLoginFilter
 │       ├── controller/      # AdminController, ExamController, ExamineeController, SubmissionController, ScoreController, AiAssistController, ExamSessionController, NotificationController
-│       ├── service/         # ExamService, DocxParserService, GradingService, OllamaClient, SubmissionService, AiAssistService, AdminUserDetailsService, NotificationService
+│       ├── service/         # ExamService, DocxParserService, GradingService, LlmClient, OllamaClient, OpenAiClient, SubmissionService, AiAssistService, AdminUserDetailsService, NotificationService
 │       ├── repository/      # JPA Repositories (6개)
 │       ├── entity/          # Admin, Exam, Problem, Answer, Examinee, Submission, ExamSession
 │       └── dto/             # 요청/응답 DTO
@@ -64,10 +64,15 @@ cd backend
 ./gradlew.bat test           # 테스트 (MariaDB exam_scorer_test 스키마, create-drop)
 ```
 
-### Ollama
+### LLM (채점/AI 출제)
 ```bash
+# Ollama 사용 시 (기본값: llm.provider=ollama)
 ollama run gemma3            # gemma3 모델 실행 (채점 시 필요)
-# Ollama 미실행 시 → 폴백(equalsIgnoreCase 단순 비교) 동작
+
+# OpenAI 사용 시 (llm.provider=openai)
+# application-local.yml에서 openai.api-key 설정 필요
+
+# LLM 미가용 시 → 폴백(equalsIgnoreCase 단순 비교) 동작
 ```
 
 ### shadcn-vue 컴포넌트 추가
@@ -144,13 +149,27 @@ SubmissionService.submitAnswers()  ← @Transactional
       → 개별 submission마다:
         → GradingService.grade()
           → null 방어: answer null → 0점, maxScore ≤ 0 → 스킵, 빈 답안 → 0점
-          → OllamaClient.isAvailable() 확인
-          → gradeWithLlm(): 프롬프트 조립 → Ollama /api/chat 호출 → JSON 파싱
+          → LlmClient.isAvailable() 확인
+          → gradeWithLlm(): 프롬프트 조립 → LlmClient.chat() 호출 → JSON 파싱
           → 실패 시 gradeFallback(): equalsIgnoreCase 단순 비교
 ```
 - `@EnableAsync`로 Spring 비동기 실행 인프라 활성화 (`ExamManagerApplication.java`)
 - `@Async`는 같은 클래스 내부 호출 시 AOP 프록시를 우회하므로, 반드시 다른 빈에서 호출해야 함 (SubmissionService → GradingService)
 - `TransactionSynchronization.afterCommit()`: 트랜잭션 커밋 후 비동기 채점 트리거 (커밋 전 호출 시 비동기 스레드에서 저장 안 된 데이터 조회 불가)
+
+### LLM Provider 구조
+```
+LlmClient (interface: isAvailable(), chat())
+├── OllamaClient (implements LlmClient) — Ollama /api/chat 호출
+└── OpenAiClient (implements LlmClient) — OpenAI /v1/chat/completions 호출
+
+LlmClientConfig — llm.provider 값에 따라 적절한 구현체를 @Bean으로 등록
+```
+- `LlmClient.java` — 인터페이스 (`isAvailable()`, `chat(systemPrompt, userPrompt) → JsonNode`)
+- `OllamaClient.java` — RestTemplate 기반 Ollama 클라이언트 (`format: json`, `stream: false`, `temperature: 0.1`)
+- `OpenAiClient.java` — RestTemplate 기반 OpenAI 클라이언트 (`temperature: 0.1`, Bearer 인증, JSON 출력은 시스템 프롬프트로 강제)
+- `LlmClientConfig.java` — `llm.provider` switch로 빈 선택 등록 (ollama/openai, 잘못된 값 시 시작 실패)
+- `GradingService`, `AiAssistService`, `AiAssistController` — `LlmClient` 인터페이스에만 의존 (구현체 무관)
 
 ### 설정 (`application.yml`)
 ```yaml
@@ -158,10 +177,20 @@ ollama:
   base-url: http://localhost:11434
   model: gemma3
   timeout: 120        # 초 단위
-  enabled: true
+
+openai:
+  api-key: ""         # application-local.yml에서 설정
+  model: gpt-5.2
+  timeout: 120
+
+llm:
+  provider: ollama    # ollama, openai, none
 ```
-- `OllamaProperties.java` — `@ConfigurationProperties(prefix = "ollama")` 바인딩
-- `OllamaClient.java` — RestTemplate 기반 HTTP 클라이언트 (`/api/chat`, `format: json`, `stream: false`, `temperature: 0.1`)
+- `llm.provider` 단일 설정으로 LLM 프로바이더 제어 (`none`이면 항상 폴백 채점)
+- `OllamaProperties.java` — `@ConfigurationProperties(prefix = "ollama")` 바인딩 (baseUrl, model, timeout)
+- `OpenAiProperties.java` — `@ConfigurationProperties(prefix = "openai")` 바인딩 (apiKey, model, timeout)
+- `LlmProperties.java` — `@ConfigurationProperties(prefix = "llm")` 바인딩 (provider)
+- OpenAI 전환: `application-local.yml`에서 `llm.provider: openai` + `openai.api-key: sk-...` 설정
 
 ### 프롬프트 구조 (`GradingService.java`)
 - **System**: 공정한 채점관 역할. 마크다운 구조(`#`/`##`/`---`)로 섹션 구분
@@ -186,7 +215,7 @@ ollama:
 - DataInitializer.java는 삭제됨
 
 ### 폴백
-Ollama 미실행/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오답 (단순 비교 채점)"
+LLM 미가용/오류 시 → `equalsIgnoreCase` 단순 비교 + feedback "오답 (단순 비교 채점)"
 
 ## 시험 관리 시스템
 
@@ -596,12 +625,12 @@ ExamTake.vue "관리자 호출" 버튼 클릭
 ## AI 출제 도우미
 
 - 시험 생성/수정 시 문제별 AI 자동 생성 기능 (Sparkles 아이콘 버튼)
-- Ollama 연동: `AiAssistService` → `OllamaClient` → gemma3 모델
-- `GET /api/ai-assist/status` — Ollama 사용 가능 여부 확인 (버튼 표시 제어)
+- LLM 연동: `AiAssistService` → `LlmClient` (Ollama/OpenAI 자동 전환)
+- `GET /api/ai-assist/status` — LLM 사용 가능 여부 확인 (버튼 표시 제어)
 - `POST /api/ai-assist/generate` — 주제/난이도 기반 문제+채점기준 생성
 - `AiAssistDialog.vue` — shadcn Dialog + ScrollArea로 결과 표시, 적용 버튼으로 폼에 반영
 - **그룹 문제 공통지문**: 하위 문제에서 AI 요청 시 `AiAssistRequest.parentContent`로 부모 지문 전달 → `AiAssistService`에서 `[보기]` 태그로 프롬프트에 포함, Dialog에 공통지문 안내 배너 표시
-- Ollama 미실행 시 AI 버튼 자체가 숨김 처리됨
+- LLM 미가용 시 AI 버튼 자체가 숨김 처리됨
 
 ## TODO (미구현)
 
@@ -623,4 +652,5 @@ ExamTake.vue "관리자 호출" 버튼 클릭
 - [x] ExamDetail 개별 문제 수정 — ProblemEditDialog + in-place PATCH (Problem ID 보존, Submission FK 안전)
 - [x] 코드 에디터 기본 언어 설정 — 문제별 codeLanguage 필드 (관리자 설정 → 수험자 기본 언어 적용)
 - [x] 페이지별 문제 탐색 — 1문제=1페이지 전환, 그룹 자식에 공통 지문 표시, Popover 페이지 선택, 제출 확인 다이얼로그
+- [x] LLM Provider 전환 구조 — LlmClient 인터페이스 추상화 (Ollama/OpenAI, `llm.provider` 설정으로 전환)
 - [ ] docx 업로드 시험 생성 UI 연결 (`POST /api/exams/upload` 엔드포인트 준비됨)
