@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 class GradingServiceNotificationTest {
 
     @Mock
-    private OllamaClient ollamaClient;
+    private LlmClient llmClient;
 
     @Mock
     private SubmissionRepository submissionRepository;
@@ -51,7 +51,7 @@ class GradingServiceNotificationTest {
 
         when(submissionRepository.findByExamineeIdAndProblemExamId(1L, 1L))
                 .thenReturn(List.of(submission));
-        when(ollamaClient.isAvailable()).thenReturn(false); // 폴백 채점 사용
+        when(llmClient.isAvailable()).thenReturn(false); // 폴백 채점 사용
         when(examineeRepository.findById(1L))
                 .thenReturn(Optional.of(Examinee.builder().id(1L).name("홍길동").build()));
 
@@ -77,7 +77,7 @@ class GradingServiceNotificationTest {
 
         when(submissionRepository.findByExamineeIdAndProblemExamId(1L, 1L))
                 .thenReturn(List.of(submission));
-        when(ollamaClient.isAvailable()).thenReturn(false);
+        when(llmClient.isAvailable()).thenReturn(false);
         when(examineeRepository.findById(1L)).thenReturn(Optional.empty());
 
         // when
@@ -102,7 +102,7 @@ class GradingServiceNotificationTest {
 
         when(submissionRepository.findByExamineeIdAndProblemExamId(1L, 1L))
                 .thenReturn(List.of(submission));
-        when(ollamaClient.isAvailable()).thenReturn(false);
+        when(llmClient.isAvailable()).thenReturn(false);
         when(examineeRepository.findById(1L))
                 .thenReturn(Optional.of(Examinee.builder().id(1L).name("홍길동").build()));
         doThrow(new RuntimeException("SSE 전송 실패"))

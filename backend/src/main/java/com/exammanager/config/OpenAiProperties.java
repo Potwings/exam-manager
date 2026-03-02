@@ -6,11 +6,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConfigurationProperties(prefix = "ollama")
+@ConfigurationProperties(prefix = "openai")
 @Getter
 @Setter
-public class OllamaProperties {
-    private String baseUrl = "http://localhost:11434";
-    private String model = "gemma3";
+public class OpenAiProperties {
+    private String apiKey = "";
+    private String model = "gpt-4o";
     private int timeout = 120;
 }

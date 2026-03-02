@@ -3,7 +3,7 @@ package com.exammanager.controller;
 import com.exammanager.dto.AiAssistRequest;
 import com.exammanager.dto.AiAssistResponse;
 import com.exammanager.service.AiAssistService;
-import com.exammanager.service.OllamaClient;
+import com.exammanager.service.LlmClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +18,7 @@ import java.util.Map;
 public class AiAssistController {
 
     private final AiAssistService aiAssistService;
-    private final OllamaClient ollamaClient;
+    private final LlmClient llmClient;
 
     @PostMapping("/generate")
     public ResponseEntity<AiAssistResponse> generate(@RequestBody AiAssistRequest request) {
@@ -28,7 +28,7 @@ public class AiAssistController {
 
     @GetMapping("/status")
     public ResponseEntity<Map<String, Boolean>> status() {
-        boolean available = ollamaClient.isAvailable();
+        boolean available = llmClient.isAvailable();
         return ResponseEntity.ok(Map.of("available", available));
     }
 

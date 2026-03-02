@@ -1,6 +1,6 @@
 package com.exammanager.service;
 
-import com.exammanager.config.OllamaProperties;
+import com.exammanager.config.OpenAiProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -12,13 +12,15 @@ import java.time.Duration;
 import java.util.*;
 
 @Slf4j
-public class OllamaClient implements LlmClient {
+public class OpenAiClient implements LlmClient {
 
-    private final OllamaProperties properties;
+    private static final String BASE_URL = "https://api.openai.com/v1";
+
+    private final OpenAiProperties properties;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    public OllamaClient(OllamaProperties properties, RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
+    public OpenAiClient(OpenAiProperties properties, RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.restTemplate = restTemplateBuilder
@@ -29,19 +31,24 @@ public class OllamaClient implements LlmClient {
 
     @Override
     public boolean isAvailable() {
+        if (properties.getApiKey() == null || properties.getApiKey().isBlank()) return false;
         try {
-            ResponseEntity<String> response = restTemplate.getForEntity(
-                    properties.getBaseUrl() + "/api/tags", String.class);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(properties.getApiKey());
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    BASE_URL + "/models", HttpMethod.GET, entity, String.class);
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            log.warn("Ollama is not available: {}", e.getMessage());
+            log.warn("OpenAI is not available: {}", e.getMessage());
             return false;
         }
     }
 
     @Override
     public JsonNode chat(String systemPrompt, String userPrompt) {
-        String url = properties.getBaseUrl() + "/api/chat";
+        String url = BASE_URL + "/chat/completions";
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", properties.getModel());
@@ -49,12 +56,11 @@ public class OllamaClient implements LlmClient {
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userPrompt)
         ));
-        body.put("format", "json");
-        body.put("stream", false);
-        body.put("options", Map.of("temperature", 0.1));
+        body.put("temperature", 0.1);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(properties.getApiKey());
 
         try {
             String requestBody = objectMapper.writeValueAsString(body);
@@ -63,15 +69,24 @@ public class OllamaClient implements LlmClient {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || response.getBody().isEmpty()) {
-                log.error("Ollama returned unexpected response: status={}, body={}", response.getStatusCode(), response.getBody());
+                log.error("OpenAI returned unexpected response: status={}, body={}", response.getStatusCode(), response.getBody());
                 return null;
             }
 
             JsonNode root = objectMapper.readTree(response.getBody());
-            String content = root.path("message").path("content").asText();
+            JsonNode choices = root.path("choices");
+            if (choices.isMissingNode() || !choices.isArray() || choices.isEmpty()) {
+                log.error("OpenAI returned no choices: {}", response.getBody());
+                return null;
+            }
+            String content = choices.path(0).path("message").path("content").asText();
+            if (content.isBlank()) {
+                log.error("OpenAI returned empty content");
+                return null;
+            }
             return objectMapper.readTree(content);
         } catch (Exception e) {
-            log.error("Ollama chat request failed: {}", e.getMessage());
+            log.error("OpenAI chat request failed: {}", e.getMessage());
             return null;
         }
     }
