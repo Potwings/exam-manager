@@ -74,7 +74,16 @@ public class OpenAiClient implements LlmClient {
             }
 
             JsonNode root = objectMapper.readTree(response.getBody());
-            String content = root.path("choices").path(0).path("message").path("content").asText();
+            JsonNode choices = root.path("choices");
+            if (choices.isMissingNode() || !choices.isArray() || choices.isEmpty()) {
+                log.error("OpenAI returned no choices: {}", response.getBody());
+                return null;
+            }
+            String content = choices.path(0).path("message").path("content").asText();
+            if (content.isBlank()) {
+                log.error("OpenAI returned empty content");
+                return null;
+            }
             return objectMapper.readTree(content);
         } catch (Exception e) {
             log.error("OpenAI chat request failed: {}", e.getMessage());

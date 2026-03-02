@@ -91,6 +91,7 @@ class OpenAiClientTest {
                 .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
 
         assertThat(client.isAvailable()).isFalse();
+        server.verify(); //isAvailable에서 expect한 요청을 보냈는지 확인
     }
 
     @Test
