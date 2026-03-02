@@ -13,5 +13,6 @@ public class ScoreSummaryResponse {
     private int totalScore;
     private int maxScore;
     private boolean gradingComplete;
+    private boolean regrading;
     private LocalDateTime submittedAt;
 }

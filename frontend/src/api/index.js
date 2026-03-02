@@ -112,6 +112,14 @@ export function updateSubmission(id, data) {
   return api.patch(`/submissions/${id}`, data)
 }
 
+export function regradeSubmission(submissionId) {
+  return api.post(`/submissions/${submissionId}/regrade`)
+}
+
+export function regradeAllSubmissions(examineeId, examId) {
+  return api.post('/submissions/regrade', { examineeId, examId })
+}
+
 // ===== Score =====
 
 export function fetchScores(examId) {

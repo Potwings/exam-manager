@@ -1,5 +1,6 @@
 package com.exammanager.controller;
 
+import com.exammanager.dto.RegradeRequest;
 import com.exammanager.dto.SubmissionRequest;
 import com.exammanager.dto.SubmissionUpdateRequest;
 import com.exammanager.dto.SubmissionResultResponse;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -29,11 +31,26 @@ public class SubmissionController {
     public ResponseEntity<?> update(@PathVariable Long id,
                                      @Valid @RequestBody SubmissionUpdateRequest request) {
         var submission = submissionService.updateSubmission(id, request);
-        return ResponseEntity.ok(Map.of(
-                "id", submission.getId(),
-                "earnedScore", submission.getEarnedScore(),
-                "feedback", submission.getFeedback()
-        ));
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", submission.getId());
+        response.put("earnedScore", submission.getEarnedScore());
+        response.put("feedback", submission.getFeedback());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/regrade")
+    public ResponseEntity<?> regrade(@PathVariable Long id) {
+        submissionService.regradeSubmission(id);
+        return ResponseEntity.ok(Map.of("message", "재채점이 시작되었습니다"));
+    }
+
+    @PostMapping("/regrade")
+    public ResponseEntity<?> regradeAll(@Valid @RequestBody RegradeRequest request) {
+        int count = submissionService.regradeAllSubmissions(request.getExamineeId(), request.getExamId());
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "재채점이 시작되었습니다");
+        response.put("count", count);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/result")
