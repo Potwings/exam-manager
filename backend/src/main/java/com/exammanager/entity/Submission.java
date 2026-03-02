@@ -34,6 +34,10 @@ public class Submission {
     @Column(columnDefinition = "TEXT")
     private String annotatedAnswer;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean regrading = false;
+
     private LocalDateTime submittedAt;
 
     @PrePersist

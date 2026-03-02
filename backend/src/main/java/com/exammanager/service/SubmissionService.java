@@ -155,6 +155,7 @@ public class SubmissionService {
                     Examinee ex = subs.get(0).getExaminee();
                     int total = subs.stream().mapToInt(s -> s.getEarnedScore() != null ? s.getEarnedScore() : 0).sum();
                     boolean allGraded = subs.stream().allMatch(s -> s.getEarnedScore() != null);
+                    boolean anyRegrading = subs.stream().anyMatch(s -> Boolean.TRUE.equals(s.getRegrading()));
                     return ScoreSummaryResponse.builder()
                             .examineeId(ex.getId())
                             .examineeName(ex.getName())
@@ -162,6 +163,7 @@ public class SubmissionService {
                             .totalScore(total)
                             .maxScore(maxScore)
                             .gradingComplete(allGraded)
+                            .regrading(anyRegrading)
                             .submittedAt(subs.stream()
                                     .map(Submission::getSubmittedAt)
                                     .filter(Objects::nonNull)
@@ -171,6 +173,60 @@ public class SubmissionService {
                 })
                 .sorted(Comparator.comparing(ScoreSummaryResponse::getExamineeId).reversed())
                 .toList();
+    }
+
+    @Transactional
+    public void regradeSubmission(Long id) {
+        Submission submission = submissionRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "제출 답안을 찾을 수 없습니다"));
+
+        if (Boolean.TRUE.equals(submission.getRegrading())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미 재채점이 진행 중입니다");
+        }
+
+        // 기존 점수/피드백은 유지하고 regrading 플래그만 설정
+        submission.setRegrading(true);
+        submissionRepository.save(submission);
+
+        // 트랜잭션 커밋 후 비동기 재채점 트리거 (기존 submitAnswers의 afterCommit 패턴과 동일)
+        Long submissionId = submission.getId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                gradingService.regradeSubmissionAsync(submissionId);
+            }
+        });
+    }
+
+    @Transactional
+    public int regradeAllSubmissions(Long examineeId, Long examId) {
+        List<Submission> submissions = submissionRepository.findByExamineeIdAndProblemExamId(examineeId, examId);
+
+        if (submissions.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "제출 답안을 찾을 수 없습니다");
+        }
+
+        boolean anyRegrading = submissions.stream()
+                .anyMatch(s -> Boolean.TRUE.equals(s.getRegrading()));
+        if (anyRegrading) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "재채점이 진행 중인 문제가 있습니다");
+        }
+
+        // 모든 submission의 regrading 플래그 설정 (기존 점수 유지)
+        for (Submission submission : submissions) {
+            submission.setRegrading(true);
+        }
+        submissionRepository.saveAll(submissions);
+
+        // 트랜잭션 커밋 후 비동기 전체 재채점 트리거
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                gradingService.regradeAllSubmissionsAsync(examineeId, examId);
+            }
+        });
+
+        return submissions.size();
     }
 
     private SubmissionResultResponse buildResult(Examinee examinee, Long examId,
@@ -196,6 +252,7 @@ public class SubmissionService {
                             .maxScore(s.getProblem().getAnswer() != null ? s.getProblem().getAnswer().getScore() : 0)
                             .feedback(s.getFeedback())
                             .annotatedAnswer(s.getAnnotatedAnswer())
+                            .regrading(s.getRegrading())
                             .problemContent(s.getProblem().getContent())
                             .problemContentType(s.getProblem().getContentType())
                             .codeAnswer(s.getProblem().getCodeEditor())

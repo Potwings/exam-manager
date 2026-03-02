@@ -43,12 +43,17 @@
               <TableCell class="font-medium">{{ r.examineeName }}</TableCell>
               <TableCell class="text-muted-foreground">{{ r.examineeBirthDate || '-' }}</TableCell>
               <TableCell>
-                <Badge v-if="!r.gradingComplete" variant="outline" class="text-amber-600 border-amber-300">
-                  <Loader2 class="h-3 w-3 animate-spin mr-1" /> 채점 중
-                </Badge>
-                <Badge v-else :variant="r.totalScore >= r.maxScore * 0.6 ? 'default' : 'destructive'">
-                  {{ r.totalScore }} / {{ r.maxScore }}
-                </Badge>
+                <div class="flex items-center gap-1.5">
+                  <Badge v-if="!r.gradingComplete" variant="outline" class="text-amber-600 border-amber-300">
+                    <Loader2 class="h-3 w-3 animate-spin mr-1" /> 채점 중
+                  </Badge>
+                  <Badge v-if="r.regrading" variant="outline" class="text-blue-600 border-blue-300">
+                    <Loader2 class="h-3 w-3 animate-spin mr-1" /> 재채점 중
+                  </Badge>
+                  <Badge :class="{ 'opacity-50': r.regrading }" :variant="r.totalScore >= r.maxScore * 0.6 ? 'default' : 'destructive'">
+                    {{ r.totalScore }} / {{ r.maxScore }}
+                  </Badge>
+                </div>
               </TableCell>
               <TableCell class="text-muted-foreground">{{ formatDate(r.submittedAt) }}</TableCell>
             </TableRow>
@@ -101,12 +106,12 @@ async function loadResults() {
 }
 
 function startPollingIfNeeded() {
-  const hasGrading = results.value.some(r => !r.gradingComplete)
-  if (hasGrading && !pollingTimer) {
+  const needsPolling = results.value.some(r => !r.gradingComplete || r.regrading)
+  if (needsPolling && !pollingTimer) {
     pollingTimer = setInterval(async () => {
       results.value = await examStore.loadScores(selectedExamId.value)
-      const stillGrading = results.value.some(r => !r.gradingComplete)
-      if (!stillGrading) stopPolling()
+      const stillNeedsPolling = results.value.some(r => !r.gradingComplete || r.regrading)
+      if (!stillNeedsPolling) stopPolling()
     }, 5000)
   }
 }

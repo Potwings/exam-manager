@@ -181,6 +181,101 @@ public class GradingService {
         }
     }
 
+    @Async
+    @Transactional
+    public void regradeSubmissionAsync(Long submissionId) {
+        Submission submission = submissionRepository.findById(submissionId).orElse(null);
+        if (submission == null) {
+            log.warn("재채점 대상 submission을 찾을 수 없습니다 - submissionId: {}", submissionId);
+            return;
+        }
+
+        log.info("개별 재채점 시작 - submissionId: {}", submissionId);
+
+        try {
+            Answer answer = submission.getProblem().getAnswer();
+            if (answer != null) {
+                grade(submission, answer);
+            }
+        } catch (Exception e) {
+            log.error("개별 재채점 실패 - submissionId: {}, error: {}", submissionId, e.getMessage());
+        } finally {
+            submission.setRegrading(false);
+            submissionRepository.save(submission);
+        }
+
+        log.info("개별 재채점 완료 - submissionId: {}", submissionId);
+
+        // 재채점 완료 알림 전송
+        try {
+            Long examineeId = submission.getExaminee().getId();
+            Long examId = submission.getProblem().getExam().getId();
+            List<Submission> allSubs = submissionRepository.findByExamineeIdAndProblemExamId(examineeId, examId);
+
+            int totalScore = allSubs.stream()
+                    .filter(s -> s.getEarnedScore() != null)
+                    .mapToInt(Submission::getEarnedScore)
+                    .sum();
+            int maxScore = allSubs.stream()
+                    .filter(s -> s.getProblem() != null && s.getProblem().getAnswer() != null)
+                    .mapToInt(s -> s.getProblem().getAnswer().getScore())
+                    .sum();
+            String examineeName = examineeRepository.findById(examineeId)
+                    .map(Examinee::getName)
+                    .orElse("알 수 없음");
+
+            notificationService.notifyGradingComplete(examineeId, examId, examineeName, totalScore, maxScore);
+        } catch (Exception e) {
+            log.warn("재채점 완료 알림 전송 실패: {}", e.getMessage());
+        }
+    }
+
+    @Async
+    @Transactional
+    public void regradeAllSubmissionsAsync(Long examineeId, Long examId) {
+        List<Submission> submissions = submissionRepository
+                .findByExamineeIdAndProblemExamId(examineeId, examId);
+
+        log.info("전체 재채점 시작 - examineeId: {}, examId: {}, 문제 수: {}",
+                examineeId, examId, submissions.size());
+
+        for (Submission submission : submissions) {
+            try {
+                Answer answer = submission.getProblem().getAnswer();
+                if (answer != null) {
+                    grade(submission, answer);
+                }
+            } catch (Exception e) {
+                log.error("재채점 실패 - submissionId: {}, error: {}",
+                        submission.getId(), e.getMessage());
+            } finally {
+                submission.setRegrading(false);
+                submissionRepository.save(submission);
+            }
+        }
+
+        log.info("전체 재채점 완료 - examineeId: {}, examId: {}", examineeId, examId);
+
+        // 전체 재채점 완료 후 알림 1회 전송
+        try {
+            int totalScore = submissions.stream()
+                    .filter(s -> s.getEarnedScore() != null)
+                    .mapToInt(Submission::getEarnedScore)
+                    .sum();
+            int maxScore = submissions.stream()
+                    .filter(s -> s.getProblem() != null && s.getProblem().getAnswer() != null)
+                    .mapToInt(s -> s.getProblem().getAnswer().getScore())
+                    .sum();
+            String examineeName = examineeRepository.findById(examineeId)
+                    .map(Examinee::getName)
+                    .orElse("알 수 없음");
+
+            notificationService.notifyGradingComplete(examineeId, examId, examineeName, totalScore, maxScore);
+        } catch (Exception e) {
+            log.warn("재채점 완료 알림 전송 실패: {}", e.getMessage());
+        }
+    }
+
     private void gradeWithLlm(Submission submission, Answer answer) {
         String problemContent = submission.getProblem() != null ? submission.getProblem().getContent() : "";
         // 자식 문제인 경우 부모 지문을 앞에 포함
