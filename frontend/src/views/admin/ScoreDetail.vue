@@ -131,9 +131,20 @@
                       <p :class="['text-sm leading-relaxed', { 'opacity-50': s.regrading }]">{{ s.feedback || '(피드백 없음)' }}</p>
                     </template>
                   </div>
+                  <!-- 채점 기준 (접이식) -->
+                  <Collapsible v-if="s.answerContent" v-slot="{ open }">
+                    <CollapsibleTrigger class="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                      채점 기준
+                      <ChevronUp v-if="open" class="h-4 w-4" />
+                      <ChevronDown v-else class="h-4 w-4" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <pre class="text-sm bg-muted rounded-md p-3 mt-1 whitespace-pre-wrap break-words">{{ s.answerContent }}</pre>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </template>
                 <template v-else>
-                  <EditForm :s="s" :editForm="editForm" :saving="saving" :editError="editError"
+                  <EditForm :s="s" :answerContent="s.answerContent" :editForm="editForm" :saving="saving" :editError="editError"
                     @save="saveEdit(s)" @cancel="cancelEdit" @marker="applyMarker" />
                 </template>
               </div>
@@ -213,9 +224,20 @@
                   <p :class="['text-sm leading-relaxed', { 'opacity-50': item.submission.regrading }]">{{ item.submission.feedback || '(피드백 없음)' }}</p>
                 </template>
               </div>
+              <!-- 채점 기준 (접이식) -->
+              <Collapsible v-if="item.submission.answerContent" v-slot="{ open }">
+                <CollapsibleTrigger class="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                  채점 기준
+                  <ChevronUp v-if="open" class="h-4 w-4" />
+                  <ChevronDown v-else class="h-4 w-4" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <pre class="text-sm bg-muted rounded-md p-3 mt-1 whitespace-pre-wrap break-words">{{ item.submission.answerContent }}</pre>
+                </CollapsibleContent>
+              </Collapsible>
             </template>
             <template v-else>
-              <EditForm :s="item.submission" :editForm="editForm" :saving="saving" :editError="editError"
+              <EditForm :s="item.submission" :answerContent="item.submission.answerContent" :editForm="editForm" :saving="saving" :editError="editError"
                 @save="saveEdit(item.submission)" @cancel="cancelEdit" @marker="applyMarker" />
             </template>
           </CardContent>
@@ -260,7 +282,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
-import { ArrowLeft, Loader2, Pencil, RotateCcw } from 'lucide-vue-next'
+import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Pencil, RotateCcw } from 'lucide-vue-next'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader,
   AlertDialogTitle, AlertDialogDescription, AlertDialogFooter,
@@ -271,10 +294,17 @@ import { renderMarkdown } from '@/lib/markdown.js'
 
 // 인라인 편집 폼 컴포넌트
 const EditForm = {
-  props: ['s', 'editForm', 'saving', 'editError'],
+  props: ['s', 'editForm', 'saving', 'editError', 'answerContent'],
   emits: ['save', 'cancel', 'marker'],
   setup(props, { emit }) {
     return () => h('div', { class: 'space-y-3' }, [
+      // 채점 기준 (편집 모드에서는 항상 펼쳐서 표시)
+      props.answerContent
+        ? h('div', { class: 'rounded-md border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-3' }, [
+            h('p', { class: 'text-sm font-medium text-blue-700 dark:text-blue-300 mb-1' }, '채점 기준'),
+            h('pre', { class: 'text-sm whitespace-pre-wrap break-words text-blue-900 dark:text-blue-100' }, props.answerContent)
+          ])
+        : null,
       h('div', [
         h('label', { class: 'text-sm font-medium text-muted-foreground mb-1 block' }, `득점 (최대 ${props.s.maxScore}점)`),
         h(Input, { type: 'number', modelValue: props.editForm.earnedScore, 'onUpdate:modelValue': v => props.editForm.earnedScore = v, min: 0, max: props.s.maxScore, class: 'w-32' })

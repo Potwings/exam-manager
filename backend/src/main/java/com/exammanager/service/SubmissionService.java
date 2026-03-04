@@ -253,6 +253,7 @@ public class SubmissionService {
                             .feedback(s.getFeedback())
                             .annotatedAnswer(s.getAnnotatedAnswer())
                             .regrading(s.getRegrading())
+                            .answerContent(s.getProblem().getAnswer() != null ? s.getProblem().getAnswer().getContent() : null)
                             .problemContent(s.getProblem().getContent())
                             .problemContentType(s.getProblem().getContentType())
                             .codeAnswer(s.getProblem().getCodeEditor())
