@@ -147,6 +147,8 @@ const scrollAreaRef = ref(null)
 const latestResult = ref(null)
 /** 다이얼로그 열릴 때 기존 문제 내용이 있었는지 여부 — UI에 안내 메시지 표시용 */
 const hasInitialContent = ref(false)
+/** Dialog 열릴 때 기존 문제 내용을 저장 — conversationHistory 구성 시 초기 assistant 메시지로 사용 */
+const initialContent = ref(null)
 
 function scrollToBottom() {
   nextTick(() => {
@@ -174,6 +176,7 @@ watch(() => props.problem?.id, () => {
   history.value = []
   latestResult.value = null
   hasInitialContent.value = false
+  initialContent.value = null
   instruction.value = ''
   error.value = ''
 })
@@ -185,6 +188,7 @@ watch(() => props.open, (opened) => {
     history.value = []
     latestResult.value = null
     hasInitialContent.value = false
+    initialContent.value = null
     instruction.value = ''
     error.value = ''
     return
@@ -192,19 +196,22 @@ watch(() => props.open, (opened) => {
   const p = props.problem
   const hasContent = p && (p.content?.trim() || p.answerContent?.trim())
   if (hasContent) {
-    latestResult.value = {
+    const content = {
       problemContent: p.content || '',
       answerContent: p.answerContent || '',
       score: p.score || 5,
       contentType: p.contentType || 'TEXT'
     }
+    latestResult.value = content
+    initialContent.value = content
     hasInitialContent.value = true
   }
 })
 
-/** 기존 문제 내용 제외 — 배너를 숨기고 latestResult 초기화하여 AI 요청에서 빠지게 함 */
+/** 기존 문제 내용 제외 — 배너를 숨기고 initialContent 초기화하여 conversationHistory에서 빠지게 함 */
 function dismissInitialContent() {
   hasInitialContent.value = false
+  initialContent.value = null
   if (history.value.length === 0) {
     latestResult.value = null
   }
@@ -237,10 +244,34 @@ async function handleGenerate() {
       data.parentContent = props.parent.content.trim()
     }
 
-    // 개선 요청: 최신 결과가 있으면 currentContent/currentAnswer 포함
-    if (latestResult.value) {
-      data.currentContent = latestResult.value.problemContent
-      data.currentAnswer = latestResult.value.answerContent
+    // 이전 대화 히스토리를 conversationHistory로 변환하여 서버에 전송
+    // — 서버가 전체 맥락을 파악하여 더 정확한 개선 응답을 생성할 수 있도록 함
+    const conversationHistory = []
+
+    // Dialog 열릴 때 기존 문제 내용이 있었고, dismiss되지 않은 경우
+    // → 초기 assistant 메시지로 포함하여 AI가 기존 문제를 맥락으로 인식하도록 함
+    if (initialContent.value) {
+      conversationHistory.push({
+        role: 'assistant',
+        content: JSON.stringify(initialContent.value)
+      })
+    }
+
+    // history 배열의 이전 대화들을 user/assistant 쌍으로 변환
+    // 마지막 항목(현재 입력)은 instruction 필드로 별도 전송하므로 제외
+    const previousItems = history.value.slice(0, -1)
+    for (const item of previousItems) {
+      conversationHistory.push({ role: 'user', content: item.instruction })
+      if (item.result) {
+        conversationHistory.push({
+          role: 'assistant',
+          content: JSON.stringify(item.result)
+        })
+      }
+    }
+
+    if (conversationHistory.length > 0) {
+      data.conversationHistory = conversationHistory
     }
 
     const res = await generateAiAssist(data)
@@ -266,6 +297,7 @@ function applyResult(result) {
   history.value = []
   latestResult.value = null
   hasInitialContent.value = false
+  initialContent.value = null
   instruction.value = ''
   error.value = ''
   emit('update:open', false)

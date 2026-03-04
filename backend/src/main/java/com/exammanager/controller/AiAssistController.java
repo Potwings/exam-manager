@@ -4,6 +4,7 @@ import com.exammanager.dto.AiAssistRequest;
 import com.exammanager.dto.AiAssistResponse;
 import com.exammanager.service.AiAssistService;
 import com.exammanager.service.LlmClient;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,7 @@ public class AiAssistController {
     private final LlmClient llmClient;
 
     @PostMapping("/generate")
-    public ResponseEntity<AiAssistResponse> generate(@RequestBody AiAssistRequest request) {
+    public ResponseEntity<AiAssistResponse> generate(@Valid @RequestBody AiAssistRequest request) {
         AiAssistResponse response = aiAssistService.generate(request);
         return ResponseEntity.ok(response);
     }
