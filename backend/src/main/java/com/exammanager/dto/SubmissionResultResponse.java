@@ -33,5 +33,6 @@ public class SubmissionResultResponse {
         private String parentProblemContent;
         private String parentProblemContentType;
         private Boolean regrading;
+        private String answerContent;
     }
 }
