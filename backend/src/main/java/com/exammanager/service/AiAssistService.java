@@ -30,6 +30,9 @@ public class AiAssistService {
     /** 대화 이력에서 허용하는 역할. system 역할 주입을 차단하기 위해 명시적으로 제한한다. */
     private static final Set<String> ALLOWED_ROLES = Set.of("user", "assistant");
 
+    /** 대화 이력 최대 메시지 수. 초과 시 최근 메시지만 사용한다. */
+    private static final int MAX_HISTORY_SIZE = 5;
+
     public AiAssistResponse generate(AiAssistRequest request) {
         if (!llmClient.isAvailable()) {
             throw new IllegalStateException("AI 서비스를 사용할 수 없습니다.");
@@ -62,9 +65,14 @@ public class AiAssistService {
         // 1) system 메시지 — 역할 정의 및 출력 형식 지정
         messages.add(new ChatMessage("system", SYSTEM_PROMPT));
 
-        // 2) conversationHistory — 이전 대화 맥락 (role 필터링으로 system 주입 차단)
+        // 2) conversationHistory — 이전 대화 맥락 (role 필터링으로 system 주입 차단, 최대 MAX_HISTORY_SIZE개)
         if (request.getConversationHistory() != null) {
-            for (ChatMessage msg : request.getConversationHistory()) {
+            List<ChatMessage> history = request.getConversationHistory();
+            if (history.size() > MAX_HISTORY_SIZE) {
+                log.info("대화 이력 크기 제한 적용: {}개 → {}개", history.size(), MAX_HISTORY_SIZE);
+                history = history.subList(history.size() - MAX_HISTORY_SIZE, history.size());
+            }
+            for (ChatMessage msg : history) {
                 if (msg == null) {
                     log.warn("대화 이력 메시지 필터링: null message");
                     continue;
