@@ -36,8 +36,9 @@ public class AiAssistService {
         }
 
         List<ChatMessage> messages = buildMessages(request);
-        log.info("AI Assist request: instruction={}, historySize={}", request.getInstruction(),
-                request.getConversationHistory() != null ? request.getConversationHistory().size() : 0);
+        int instructionLength = request.getInstruction() != null ? request.getInstruction().length() : 0;
+        int historySize = request.getConversationHistory() != null ? request.getConversationHistory().size() : 0;
+        log.info("AI Assist request: instructionLength={}, historySize={}", instructionLength, historySize);
 
         JsonNode result = llmClient.chat(messages);
         if (result == null) {
@@ -64,6 +65,10 @@ public class AiAssistService {
         // 2) conversationHistory — 이전 대화 맥락 (role 필터링으로 system 주입 차단)
         if (request.getConversationHistory() != null) {
             for (ChatMessage msg : request.getConversationHistory()) {
+                if (msg == null) {
+                    log.warn("대화 이력 메시지 필터링: null message");
+                    continue;
+                }
                 if (msg.getRole() != null && ALLOWED_ROLES.contains(msg.getRole())
                         && msg.getContent() != null && !msg.getContent().isBlank()) {
                     messages.add(msg);
