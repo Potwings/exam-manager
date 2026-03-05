@@ -133,8 +133,12 @@ async function loadSessions() {
     return
   }
 
+  const examId = selectedExamId.value
   try {
-    const { data } = await fetchMonitorSessions(selectedExamId.value)
+    const { data } = await fetchMonitorSessions(examId)
+    // 응답 수신 시점에 시험이 변경되었으면 stale 응답이므로 무시
+    if (examId !== selectedExamId.value) return
+
     sessions.value = data
     fetchedAt = Date.now()
     tick.value = 0
@@ -150,8 +154,12 @@ function startPollingIfNeeded() {
   const hasInProgress = sessions.value.some(s => s.status === 'IN_PROGRESS')
   if (hasInProgress && !pollingTimer) {
     pollingTimer = setInterval(async () => {
+      const examId = selectedExamId.value
       try {
-        const { data } = await fetchMonitorSessions(selectedExamId.value)
+        const { data } = await fetchMonitorSessions(examId)
+        // 응답 수신 시점에 시험이 변경되었으면 stale 응답이므로 무시
+        if (examId !== selectedExamId.value) return
+
         sessions.value = data
         fetchedAt = Date.now()
         tick.value = 0
@@ -205,9 +213,9 @@ function displayTime(session) {
     return null
   }
 
-  const elapsed = (Date.now() - fetchedAt) / 1000
-  const remaining = session.remainingSeconds - elapsed
-  return Math.max(0, Math.floor(remaining))
+  const elapsedSeconds = Math.floor((Date.now() - fetchedAt) / 1000)
+  const remaining = session.remainingSeconds - elapsedSeconds
+  return Math.max(0, remaining)
 }
 
 // --- 상태 Badge ---

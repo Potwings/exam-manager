@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -36,8 +37,11 @@ public class MonitorService {
 
         List<ExamSession> sessions = examSessionRepository.findByExamIdWithExaminee(examId);
 
+        // 제출 여부를 한 번의 쿼리로 일괄 조회 (N+1 방지)
+        Set<Long> submittedExamineeIds = submissionRepository.findSubmittedExamineeIdsByExamId(examId);
+
         return sessions.stream()
-                .map(session -> buildMonitorResponse(session, exam))
+                .map(session -> buildMonitorResponse(session, exam, submittedExamineeIds))
                 .sorted(Comparator.comparing(ExamSessionMonitorResponse::getStartedAt).reversed())
                 .toList();
     }
@@ -46,10 +50,10 @@ public class MonitorService {
      * 개별 ExamSession에 대해 모니터링 응답을 구성한다.
      * 제출 여부와 시간 제한 상태에 따라 status와 remainingSeconds를 결정한다.
      */
-    private ExamSessionMonitorResponse buildMonitorResponse(ExamSession session, Exam exam) {
+    private ExamSessionMonitorResponse buildMonitorResponse(ExamSession session, Exam exam,
+                                                             Set<Long> submittedExamineeIds) {
         Examinee examinee = session.getExaminee();
-        boolean hasSubmission = submissionRepository.existsByExamineeIdAndProblemExamId(
-                examinee.getId(), exam.getId());
+        boolean hasSubmission = submittedExamineeIds.contains(examinee.getId());
 
         String status;
         Long remainingSeconds;

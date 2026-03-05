@@ -1,17 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 
-import AdminLogin from '../views/admin/AdminLogin.vue'
-import ExamManage from '../views/admin/ExamManage.vue'
-import ExamCreate from '../views/admin/ExamCreate.vue'
-import ExamDetail from '../views/admin/ExamDetail.vue'
-import ScoreBoard from '../views/admin/ScoreBoard.vue'
-import ScoreDetail from '../views/admin/ScoreDetail.vue'
-import AdminMembers from '../views/admin/AdminMembers.vue'
-import ChangePassword from '../views/admin/ChangePassword.vue'
-import ExamMonitor from '../views/admin/ExamMonitor.vue'
-import ExamLogin from '../views/exam/ExamLogin.vue'
-import ExamTake from '../views/exam/ExamTake.vue'
+import AdminLogin from '@/views/admin/AdminLogin.vue'
+import ExamManage from '@/views/admin/ExamManage.vue'
+import ExamCreate from '@/views/admin/ExamCreate.vue'
+import ExamDetail from '@/views/admin/ExamDetail.vue'
+import ScoreBoard from '@/views/admin/ScoreBoard.vue'
+import ScoreDetail from '@/views/admin/ScoreDetail.vue'
+import AdminMembers from '@/views/admin/AdminMembers.vue'
+import ChangePassword from '@/views/admin/ChangePassword.vue'
+import ExamMonitor from '@/views/admin/ExamMonitor.vue'
+import ExamLogin from '@/views/exam/ExamLogin.vue'
+import ExamTake from '@/views/exam/ExamTake.vue'
 
 const routes = [
   { path: '/', redirect: '/exam/login' },

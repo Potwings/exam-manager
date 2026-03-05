@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -54,7 +55,7 @@ class MonitorServiceTest {
 
         when(examService.findById(examId)).thenReturn(exam);
         when(examSessionRepository.findByExamIdWithExaminee(examId)).thenReturn(List.of(session));
-        when(submissionRepository.existsByExamineeIdAndProblemExamId(10L, examId)).thenReturn(false);
+        when(submissionRepository.findSubmittedExamineeIdsByExamId(examId)).thenReturn(Collections.emptySet());
 
         // when
         List<ExamSessionMonitorResponse> result = monitorService.getSessionsByExam(examId);
@@ -89,7 +90,7 @@ class MonitorServiceTest {
 
         when(examService.findById(examId)).thenReturn(exam);
         when(examSessionRepository.findByExamIdWithExaminee(examId)).thenReturn(List.of(session));
-        when(submissionRepository.existsByExamineeIdAndProblemExamId(10L, examId)).thenReturn(true);
+        when(submissionRepository.findSubmittedExamineeIdsByExamId(examId)).thenReturn(Set.of(10L));
 
         // when
         List<ExamSessionMonitorResponse> result = monitorService.getSessionsByExam(examId);
@@ -120,7 +121,7 @@ class MonitorServiceTest {
 
         when(examService.findById(examId)).thenReturn(exam);
         when(examSessionRepository.findByExamIdWithExaminee(examId)).thenReturn(List.of(session));
-        when(submissionRepository.existsByExamineeIdAndProblemExamId(10L, examId)).thenReturn(false);
+        when(submissionRepository.findSubmittedExamineeIdsByExamId(examId)).thenReturn(Collections.emptySet());
 
         // when
         List<ExamSessionMonitorResponse> result = monitorService.getSessionsByExam(examId);
@@ -151,7 +152,7 @@ class MonitorServiceTest {
 
         when(examService.findById(examId)).thenReturn(exam);
         when(examSessionRepository.findByExamIdWithExaminee(examId)).thenReturn(List.of(session));
-        when(submissionRepository.existsByExamineeIdAndProblemExamId(10L, examId)).thenReturn(false);
+        when(submissionRepository.findSubmittedExamineeIdsByExamId(examId)).thenReturn(Collections.emptySet());
 
         // when
         List<ExamSessionMonitorResponse> result = monitorService.getSessionsByExam(examId);
@@ -175,6 +176,7 @@ class MonitorServiceTest {
 
         when(examService.findById(examId)).thenReturn(exam);
         when(examSessionRepository.findByExamIdWithExaminee(examId)).thenReturn(Collections.emptyList());
+        when(submissionRepository.findSubmittedExamineeIdsByExamId(examId)).thenReturn(Collections.emptySet());
 
         // when
         List<ExamSessionMonitorResponse> result = monitorService.getSessionsByExam(examId);
@@ -212,7 +214,7 @@ class MonitorServiceTest {
 
         when(examService.findById(examId)).thenReturn(exam);
         when(examSessionRepository.findByExamIdWithExaminee(examId)).thenReturn(List.of(session1, session2, session3));
-        when(submissionRepository.existsByExamineeIdAndProblemExamId(anyLong(), eq(examId))).thenReturn(false);
+        when(submissionRepository.findSubmittedExamineeIdsByExamId(examId)).thenReturn(Collections.emptySet());
 
         // when
         List<ExamSessionMonitorResponse> result = monitorService.getSessionsByExam(examId);

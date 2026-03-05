@@ -101,7 +101,7 @@
 ### Backend
 
 #### 새 API 엔드포인트
-- `GET /api/exam-sessions/monitor?examId={examId}` -- 특정 시험의 응시 현황 조회 (Admin 전용)
+- `GET /api/monitor/sessions?examId={examId}` -- 특정 시험의 응시 현황 조회 (Admin 전용)
 - 새 Controller 메서드를 기존 `ExamSessionController`에 추가하지 않음 -- 기존 `ExamSessionController`는 수험자용(permitAll)이므로, 관리자 전용 모니터링 API는 별도 경로 구성 필요
 
 #### SecurityConfig 고려사항
@@ -142,43 +142,59 @@ public class MonitorService {
 
     public List<ExamSessionMonitorResponse> getSessionsByExam(Long examId) {
         Exam exam = examService.findById(examId);
-        List<ExamSession> sessions = examSessionRepository.findByExamId(examId);
+        // JPQL fetch join으로 Examinee를 한 번에 로드 (N+1 방지)
+        List<ExamSession> sessions = examSessionRepository.findByExamIdWithExaminee(examId);
+        // 제출 여부를 한 번의 쿼리로 일괄 조회 (N+1 방지)
+        Set<Long> submittedExamineeIds = submissionRepository.findSubmittedExamineeIdsByExamId(examId);
 
-        return sessions.stream().map(session -> {
-            boolean submitted = submissionRepository
-                .existsByExamineeIdAndProblemExamId(session.getExaminee().getId(), examId);
+        return sessions.stream()
+                .map(session -> buildMonitorResponse(session, exam, submittedExamineeIds))
+                .sorted(Comparator.comparing(ExamSessionMonitorResponse::getStartedAt).reversed())
+                .toList();
+    }
 
-            String status;
-            Long remainingSeconds = null;
+    private ExamSessionMonitorResponse buildMonitorResponse(ExamSession session, Exam exam,
+                                                             Set<Long> submittedExamineeIds) {
+        Examinee examinee = session.getExaminee();
+        boolean hasSubmission = submittedExamineeIds.contains(examinee.getId());
 
-            if (submitted) {
-                status = "SUBMITTED";
-            } else if (exam.getTimeLimit() != null) {
-                long remaining = calculateRemainingSeconds(session, exam);
-                remainingSeconds = remaining;
-                status = remaining <= 0 ? "TIME_EXPIRED" : "IN_PROGRESS";
-            } else {
-                status = "IN_PROGRESS";
-            }
+        String status;
+        Long remainingSeconds = null;
 
-            return ExamSessionMonitorResponse.builder()
-                .examineeId(session.getExaminee().getId())
-                .examineeName(session.getExaminee().getName())
-                .examineeBirthDate(session.getExaminee().getBirthDate())
+        if (hasSubmission) {
+            status = "SUBMITTED";
+        } else if (exam.getTimeLimit() != null) {
+            long remaining = ExamTimeUtils.calculateRemainingSeconds(
+                    session.getStartedAt(), exam.getTimeLimit());
+            remainingSeconds = remaining;
+            status = remaining <= 0 ? "TIME_EXPIRED" : "IN_PROGRESS";
+        } else {
+            status = "IN_PROGRESS";
+        }
+
+        return ExamSessionMonitorResponse.builder()
+                .examineeId(examinee.getId())
+                .examineeName(examinee.getName())
+                .examineeBirthDate(examinee.getBirthDate())
                 .status(status)
                 .remainingSeconds(remainingSeconds)
                 .startedAt(session.getStartedAt())
                 .build();
-        }).sorted(Comparator.comparing(ExamSessionMonitorResponse::getStartedAt).reversed())
-          .toList();
     }
 }
 ```
 
 #### Repository 변경
-`ExamSessionRepository`에 메서드 추가:
+`ExamSessionRepository`에 fetch join JPQL 쿼리 추가 (Examinee N+1 방지):
 ```java
-List<ExamSession> findByExamId(Long examId);
+@Query("SELECT s FROM ExamSession s JOIN FETCH s.examinee WHERE s.exam.id = :examId")
+List<ExamSession> findByExamIdWithExaminee(@Param("examId") Long examId);
+```
+
+`SubmissionRepository`에 배치 쿼리 추가 (Submission 존재 확인 N+1 방지):
+```java
+@Query("SELECT DISTINCT s.examinee.id FROM Submission s WHERE s.problem.exam.id = :examId")
+Set<Long> findSubmittedExamineeIdsByExamId(@Param("examId") Long examId);
 ```
 
 #### SecurityConfig 변경
@@ -238,7 +254,7 @@ export function fetchMonitorSessions(examId) {
 ### 고려사항
 
 #### 기존 기능과의 호환성
-- `ExamSessionRepository.findByExamId()` 추가는 기존 `findByExamineeIdAndExamId()`에 영향 없음
+- `ExamSessionRepository.findByExamIdWithExaminee()` 추가는 기존 `findByExamineeIdAndExamId()`에 영향 없음
 - `/api/monitor/**` 신규 경로이므로 기존 엔드포인트와 충돌 없음
 - 시간 제한 없는 시험도 ExamSession이 생성되지 않는 경우가 있음 (ExamSessionController에서 timeLimit null이면 세션 미생성). 이 경우 해당 수험자는 monitor 목록에 표시되지 않으므로, 시간 제한 없는 시험에서는 "세션 없는 수험자"도 표시해야 함 -> **Submission 기반 보조 조회** 필요
 
@@ -288,19 +304,20 @@ public ExamSessionResponse createSession(@Valid @RequestBody ExamSessionRequest 
         return ExamSessionResponse.builder().remainingSeconds(null).build();
     }
 
-    long remaining = calculateRemainingSeconds(session, exam);
+    long remaining = ExamTimeUtils.calculateRemainingSeconds(session.getStartedAt(), exam.getTimeLimit());
     return ExamSessionResponse.builder().remainingSeconds(remaining).build();
 }
 ```
-기존과 차이: `timeLimit == null` 체크를 세션 생성 이후로 이동. 응답은 기존과 동일하므로 수험자 UI에 영향 없음.
+기존과 차이: `timeLimit == null` 체크를 세션 생성 이후로 이동. 시간 계산은 `ExamTimeUtils` 유틸 클래스로 분리. 응답은 기존과 동일하므로 수험자 UI에 영향 없음.
 
 #### 보안 (인증/권한)
 - `/api/monitor/**` 경로를 SecurityConfig에서 `.authenticated()`로 보호
 - 기존 `/api/exam-sessions/**` (permitAll)과 완전히 분리된 경로
 
 #### 성능 영향
-- `ExamSession.findByExamId()`: exam_id 인덱스로 효율적 조회 (FK 컬럼이므로 자동 인덱스)
-- `existsByExamineeIdAndProblemExamId()`: 기존 메서드 재활용 (EXISTS 쿼리로 효율적)
+- `findByExamIdWithExaminee()`: JPQL fetch join으로 ExamSession + Examinee를 단일 쿼리로 조회 (N+1 방지)
+- `findSubmittedExamineeIdsByExamId()`: 제출 완료 수험자 ID를 단일 쿼리로 일괄 조회 후 `Set.contains()`로 O(1) 판별 (N+1 방지)
+- 전체 쿼리 수: 세션 수와 무관하게 항상 3회 (시험 조회 + 세션 조회 + 제출 조회)
 - 10초 폴링: ScoreBoard의 5초 폴링보다 느슨하여 서버 부하 낮음
 - 세션 수: 시험당 수십~수백 명 수준이므로 성능 문제 없음
 
