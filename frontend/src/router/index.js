@@ -9,6 +9,7 @@ import ScoreBoard from '../views/admin/ScoreBoard.vue'
 import ScoreDetail from '../views/admin/ScoreDetail.vue'
 import AdminMembers from '../views/admin/AdminMembers.vue'
 import ChangePassword from '../views/admin/ChangePassword.vue'
+import ExamMonitor from '../views/admin/ExamMonitor.vue'
 import ExamLogin from '../views/exam/ExamLogin.vue'
 import ExamTake from '../views/exam/ExamTake.vue'
 
@@ -21,6 +22,7 @@ const routes = [
   { path: '/admin/exams/:id/edit', component: ExamCreate, meta: { requiresAdmin: true } },
   { path: '/admin/exams/:id', component: ExamDetail, meta: { requiresAdmin: true } },
   { path: '/admin/members', component: AdminMembers, meta: { requiresAdmin: true } },
+  { path: '/admin/monitor', component: ExamMonitor, meta: { requiresAdmin: true } },
   { path: '/admin/scores', component: ScoreBoard, meta: { requiresAdmin: true } },
   { path: '/admin/scores/:examId/:examineeId', component: ScoreDetail, meta: { requiresAdmin: true } },
   { path: '/exam/login', component: ExamLogin },
