@@ -1,5 +1,6 @@
 package com.exammanager.controller;
 
+import com.exammanager.config.ExamTimeUtils;
 import com.exammanager.dto.ExamSessionRequest;
 import com.exammanager.dto.ExamSessionResponse;
 import com.exammanager.entity.Exam;
@@ -15,8 +16,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
-import java.time.Duration;
-import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/exam-sessions")
@@ -31,15 +30,10 @@ public class ExamSessionController {
     public ExamSessionResponse createSession(@Valid @RequestBody ExamSessionRequest request) {
         Exam exam = examService.findById(request.getExamId());
 
-        // timeLimit 없으면 세션 미생성, 시간 제한 없음 응답
-        if (exam.getTimeLimit() == null) {
-            return ExamSessionResponse.builder().remainingSeconds(null).build();
-        }
-
         Examinee examinee = examineeRepository.findById(request.getExamineeId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "시험자를 찾을 수 없습니다"));
 
-        // find-or-create 패턴: 기존 세션이 있으면 재사용, 없으면 새로 생성
+        // 항상 세션 생성 (find-or-create): 시간 제한 유무와 관계없이 모니터링 추적용
         ExamSession session = examSessionRepository.findByExamineeIdAndExamId(
                 request.getExamineeId(), request.getExamId()
         ).orElse(null);
@@ -59,7 +53,12 @@ public class ExamSessionController {
             }
         }
 
-        long remaining = calculateRemainingSeconds(session, exam);
+        // timeLimit 없으면 시간 제한 없음 응답 (세션은 이미 생성됨)
+        if (exam.getTimeLimit() == null) {
+            return ExamSessionResponse.builder().remainingSeconds(null).build();
+        }
+
+        long remaining = ExamTimeUtils.calculateRemainingSeconds(session.getStartedAt(), exam.getTimeLimit());
         return ExamSessionResponse.builder().remainingSeconds(remaining).build();
     }
 
@@ -77,13 +76,7 @@ public class ExamSessionController {
         ExamSession session = examSessionRepository.findByExamineeIdAndExamId(examineeId, examId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "세션을 찾을 수 없습니다"));
 
-        long remaining = calculateRemainingSeconds(session, exam);
+        long remaining = ExamTimeUtils.calculateRemainingSeconds(session.getStartedAt(), exam.getTimeLimit());
         return ExamSessionResponse.builder().remainingSeconds(remaining).build();
-    }
-
-    private long calculateRemainingSeconds(ExamSession session, Exam exam) {
-        LocalDateTime endTime = session.getStartedAt().plusMinutes(exam.getTimeLimit());
-        long remaining = Duration.between(LocalDateTime.now(), endTime).getSeconds();
-        return Math.max(remaining, 0);
     }
 }

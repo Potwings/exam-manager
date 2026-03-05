@@ -142,6 +142,12 @@ export function callAdmin(examineeId, examId, examineeName) {
   return api.post('/notifications/call-admin', { examineeId, examId, examineeName })
 }
 
+// ===== Monitor =====
+
+export function fetchMonitorSessions(examId) {
+  return api.get('/monitor/sessions', { params: { examId } })
+}
+
 // ===== AI Assist =====
 
 export function checkAiStatus() {

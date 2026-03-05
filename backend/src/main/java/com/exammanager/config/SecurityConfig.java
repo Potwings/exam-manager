@@ -54,6 +54,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/exams/**").authenticated()
                         .requestMatchers("/api/submissions/**").authenticated()
                         .requestMatchers("/api/scores/**").authenticated()
+                        .requestMatchers("/api/monitor/**").authenticated()
                         .requestMatchers("/api/ai-assist/**").authenticated()
                         .requestMatchers("/api/admin/**").authenticated()
                         // 그 외 모든 요청 허용 (정적 리소스 등)

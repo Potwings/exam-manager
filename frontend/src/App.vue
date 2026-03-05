@@ -12,6 +12,9 @@
               <router-link to="/admin/scores">채점결과</router-link>
             </Button>
             <Button variant="ghost" size="sm" as-child>
+              <router-link to="/admin/monitor">응시현황</router-link>
+            </Button>
+            <Button variant="ghost" size="sm" as-child>
               <router-link to="/admin/exams">시험관리</router-link>
             </Button>
             <Button variant="ghost" size="sm" as-child>
