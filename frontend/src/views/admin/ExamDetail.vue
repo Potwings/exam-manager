@@ -67,7 +67,7 @@
                 <div class="flex items-center gap-1">
                   <Badge variant="secondary" class="text-xs">{{ child.score }}점</Badge>
                   <Badge v-if="child.codeEditor" variant="outline" class="text-xs text-emerald-700 border-emerald-300 dark:text-emerald-300 dark:border-emerald-700">코드 에디터</Badge>
-                  <Button variant="ghost" size="sm" class="h-7 w-7 p-0" :aria-label="`Q${problem.problemNumber}-${child.problemNumber} 문제 수정`" @click="openEditDialog(child, false, problem.problemNumber)">
+                  <Button variant="ghost" size="sm" class="h-7 w-7 p-0" :aria-label="`Q${problem.problemNumber}-${child.problemNumber} 문제 수정`" @click="openEditDialog(child, false, problem.problemNumber, problem.content)">
                     <SquarePen class="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 </div>
@@ -126,6 +126,7 @@
       :exam-id="examId"
       :is-group-parent="editTarget?.isGroupParent ?? false"
       :parent-problem-number="editTarget?.parentProblemNumber"
+      :parent-content="editTarget?.parentContent"
       @saved="handleProblemSaved"
     />
   </div>
@@ -187,8 +188,8 @@ function handleEdit() {
   }
 }
 
-function openEditDialog(problem, isGroupParent = false, parentProblemNumber = null) {
-  editTarget.value = { problem, isGroupParent, parentProblemNumber }
+function openEditDialog(problem, isGroupParent = false, parentProblemNumber = null, parentContent = null) {
+  editTarget.value = { problem, isGroupParent, parentProblemNumber, parentContent }
   editDialogOpen.value = true
 }
 
