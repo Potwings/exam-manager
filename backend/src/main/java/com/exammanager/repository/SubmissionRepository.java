@@ -17,6 +17,11 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
     boolean existsByProblemExamId(Long examId);
     boolean existsByExamineeIdAndProblemExamId(Long examineeId, Long examId);
+    @Query("SELECT COUNT(s) FROM Submission s " +
+           "WHERE s.examinee.id = :examineeId " +
+           "AND s.problem.exam.active = true " +
+           "AND s.problem.exam.deleted = false")
+    long countByExamineeIdAndActiveExam(@Param("examineeId") Long examineeId);
 
     @Query("SELECT DISTINCT s.examinee.id FROM Submission s WHERE s.problem.exam.id = :examId")
     Set<Long> findSubmittedExamineeIdsByExamId(@Param("examId") Long examId);

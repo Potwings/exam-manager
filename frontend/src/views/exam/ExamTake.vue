@@ -651,7 +651,7 @@ async function handleSubmit() {
     authStore.clear()
   } catch (e) {
     if (e.response?.status === 409) {
-      alert('이미 응시 완료한 시험입니다.')
+      alert('이미 응시 완료하였습니다.')
       router.push('/exam/login')
     } else if (e.response?.status === 403) {
       localStorage.removeItem(`exam_${route.params.examId}_answers`)
