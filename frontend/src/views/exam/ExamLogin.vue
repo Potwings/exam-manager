@@ -78,7 +78,6 @@ const loading = ref(true)
 const loginLoading = ref(false)
 const nameTouched = ref(false)
 const birthDateTouched = ref(false)
-
 // 8자리 숫자가 실제 유효한 날짜(윤년/월별 일수 포함)인지 검증
 function isValidDate(dateStr) {
   if (!/^\d{8}$/.test(dateStr)) return false
@@ -122,7 +121,11 @@ async function handleLogin() {
     await authStore.login(trimmedName, formatted)
     router.push(`/exam/take/${examStore.activeExam.id}`)
   } catch (e) {
-    alert('로그인 실패: ' + (e.response?.data?.message || e.message))
+    if (e.response?.status === 409) {
+      alert('이미 응시 완료하였습니다.')
+    } else {
+      alert('로그인에 실패했습니다. 다시 시도해주세요.')
+    }
   } finally {
     loginLoading.value = false
   }
