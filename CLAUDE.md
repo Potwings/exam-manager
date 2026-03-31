@@ -20,6 +20,10 @@
 
 ```
 exam-scorer/
+├── .claude/                 # Claude Code 에이전트 설정
+│   ├── agents/              # 서브에이전트 6개 (기획/백엔드/프론트/QA/리뷰/PR)
+│   ├── agent-memory/        # 에이전트별 영구 메모리 (세션 간 학습 기록)
+│   └── skills/              # 커스텀 스킬 (agent-dev 오케스트레이션, playwright-cli)
 ├── frontend/                # Vue 3 SPA
 │   └── src/
 │       ├── api/             # Axios 인스턴스 + API 호출 함수
